@@ -11,11 +11,14 @@
 
 **Mã task**
 
-| Tiền tố | Nghĩa | Thư mục |
+| Tiền tố | Nghĩa | Đường dẫn |
 |---|---|---|
 | `BE-` | Backend Laravel | `backend/` |
-| `AD-` | Giao diện quản trị | `frontend-admin/` |
-| `FE-` | Giao diện khách | `frontend/` |
+| `FND-` | Nền frontend dùng chung | `frontend/src/lib`, `components/ui`, `store`, `types` |
+| `AD-` | Giao diện quản trị | `frontend/src/app/admin/` |
+| `FE-` | Giao diện khách | `frontend/src/app/(shop)/` |
+
+> **Chỉ có một source frontend.** Giao diện khách và trang quản trị dùng chung một ứng dụng Next.js, tách nhau bằng route group `(shop)` và `admin`. Mã `AD-` và `FE-` vẫn giữ nguyên để phân biệt loại công việc, nhưng cùng nằm trong `frontend/`.
 
 **Cột trong bảng**
 
@@ -39,7 +42,7 @@
 | GĐ | Nội dung | Ước lượng | Kết quả demo được |
 |---|---|---|---|
 | ✅ 0 | Nền Laravel + 22 bảng + Model | Đã xong | API `/ping` chạy, CSDL 24 bảng có dữ liệu mẫu |
-| 1 | Nền frontend + Auth | 8 buổi | Đăng nhập admin vào được trang quản trị |
+| 1 | Nền frontend + Auth | 7 buổi | Đăng nhập admin vào được `/admin` |
 | 2 | Catalog quản trị | 10 buổi | Admin thêm/sửa/xoá sản phẩm, biến thể, ảnh |
 | 3 | Catalog công khai + Auth khách | 8 buổi | Khách xem web, đăng ký, đăng nhập |
 | 4 | Kho + Khuyến mãi | 6 buổi | Admin lập phiếu nhập/xuất, tạo mã giảm giá |
@@ -50,7 +53,9 @@
 | 9 | Nội dung + Đánh giá + Liên hệ | 8 buổi | Blog, trang tĩnh, banner, menu, đánh giá |
 | 10 | Báo cáo + Hoàn thiện | 6 buổi | Dashboard, báo cáo doanh thu, deploy |
 
-**Tổng ≈ 76 buổi.** Chia 2 người ≈ 38 buổi mỗi người.
+**Tổng ≈ 75 buổi.** Chia 2 người ≈ 37–38 buổi mỗi người.
+
+> Gộp hai frontend làm một tiết kiệm được 1 buổi dựng nền, nhưng cái lợi thật nằm ở chỗ khác: không phải duy trì hai bản `api-client`, `money.ts`, `date.ts` và `types` song song suốt 33 task backend.
 
 ---
 
@@ -62,12 +67,11 @@ Mục tiêu: **đăng nhập được vào trang quản trị**. Đây là đi�
 |---|---|---|:-:|:-:|
 | `BE-01` | API đăng nhập / đăng xuất / lấy hồ sơ | | N1 | 2 |
 | `BE-02` | API đăng ký + quên mật khẩu + đặt lại mật khẩu | `BE-01` | N1 | 2 |
-| `AD-00` | Dựng nền `frontend-admin` | | N2 | 2 |
-| `FE-00` | Dựng nền `frontend` | `AD-00` | N2 | 2 |
-| 🔄 | **Đồng bộ:** API auth chạy + hai frontend có nền | | | |
-| `AD-01` | Màn đăng nhập quản trị | `BE-01`, `AD-00` | N1 | 1 |
+| `FND-00` | Dựng nền frontend dùng chung | | N2 | 3 |
+| 🔄 | **Đồng bộ:** API auth chạy + frontend có nền dùng chung | | | |
+| `AD-01` | Màn đăng nhập quản trị | `BE-01`, `FND-00` | N1 | 1 |
 | `AD-02` | Route guard + layout quản trị hoàn chỉnh | `AD-01` | N1 | 2 |
-| `FE-01` | Màn đăng ký + đăng nhập khách | `BE-02`, `FE-00` | N2 | 2 |
+| `FE-01` | Màn đăng ký + đăng nhập khách | `BE-02`, `FND-00` | N2 | 2 |
 | `FE-02` | Màn quên mật khẩu + đặt lại mật khẩu | `FE-01` | N2 | 1 |
 | `BE-03` | API sửa hồ sơ + đổi mật khẩu | `BE-01` | N1 | 1 |
 | `AD-03` | Trang hồ sơ quản trị viên | `BE-03`, `AD-02` | N1 | 1 |
@@ -87,24 +91,32 @@ Mục tiêu: **đăng nhập được vào trang quản trị**. Đây là đi�
 - `POST /auth/reset-password` → kiểm tra token còn hạn 60 phút (BR-56), đổi mật khẩu, xoá token.
 - Lúc phát triển để `MAIL_MAILER=log`, nội dung mail xem ở `storage/logs/laravel.log`.
 
-**`AD-00` — Dựng nền `frontend-admin`**
-- `src/lib/api-client.ts`: wrapper `fetch`, tự gắn `Authorization: Bearer`, bắt lỗi theo định dạng `{message, errors, code}` của §7.
-- `src/store/auth.ts`: lưu token (localStorage) + thông tin user.
-- `src/components/layout/`: `AdminLayout`, `Sidebar`, `Topbar` theo wireframe A01.
-- `src/components/ui/`: `Button`, `Input`, `Select`, `Modal`, `DataTable`, `Toast`.
-- `.env.local`: `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1`.
+**`FND-00` — Dựng nền frontend dùng chung**
 
-**`FE-00` — Dựng nền `frontend`**
-- `api-client.ts` dùng lại y hệt bản của admin.
-- `Header` + `Footer` đọc động từ `GET /configs` và `GET /menus` (tạm hardcode, nối API thật ở `FE-03`).
-- `src/lib/money.ts` (định dạng VNĐ), `src/lib/date.ts` (tính số ngày thuê).
+Đây là task **cả hai bên đều phụ thuộc**, làm cẩn thận một lần rồi dùng suốt dự án.
+
+Dùng chung:
+- `src/lib/api-client.ts` — wrapper `fetch`, tự gắn `Authorization: Bearer`, parse lỗi theo định dạng `{message, errors, code}` của §7.
+- `src/lib/money.ts` — định dạng VNĐ, tránh sai số làm tròn.
+- `src/lib/date.ts` — **tính `rental_days` bao gồm cả hai đầu** (BR-10). Hàm này dùng ở cả màn chi tiết sản phẩm, giỏ, checkout lẫn màn quyết toán của admin, nên chỉ được có đúng một bản.
+- `src/lib/validators.ts` — zod schema dùng chung cho form.
+- `src/store/auth.ts` — token (localStorage) + thông tin user.
+- `src/components/ui/` — `Button`, `Input`, `Select`, `Modal`, `DataTable`, `Toast`.
+- `src/types/` — kiểu dữ liệu khớp API Resource của Laravel.
+
+Riêng từng bên:
+- `src/app/(shop)/layout.tsx` — Header + Footer (khung đã dựng, nối API thật ở `FE-03`).
+- `src/app/admin/layout.tsx` — Sidebar + Topbar theo wireframe A01 (khung đã dựng, gắn guard ở `AD-02`).
+- `src/app/(auth)/layout.tsx` — khung giữa màn hình cho các màn xác thực.
+
+Cấu hình: `cp .env.local.example .env.local` (đã có sẵn `NEXT_PUBLIC_API_URL`).
 
 **`AD-02` — Route guard**
 - Chưa đăng nhập → đá về `/login`.
 - Đăng nhập nhưng `role !== 'admin'` → trang 403.
 - Token hết hạn (API trả 401) → xoá token, về `/login`.
 
-**✅ Xong GĐ 1 khi:** mở `localhost:3001`, đăng nhập bằng tài khoản admin, vào được dashboard rỗng; khách đăng ký được tài khoản mới ở `localhost:3000`.
+**✅ Xong GĐ 1 khi:** mở `localhost:3000/admin`, đăng nhập bằng tài khoản admin, vào được dashboard rỗng; khách đăng ký được tài khoản mới ở `localhost:3000`.
 
 ---
 
@@ -148,7 +160,7 @@ Mục tiêu: **khách xem được hàng** do admin vừa nhập.
 | `BE-07` | API public: configs, menus, banners, categories, brands | `BE-04` | N1 | 1 |
 | `BE-08` | API public: danh sách sản phẩm (lọc, sắp xếp, phân trang) | `BE-05` | N1 | 2 |
 | `BE-09` | API public: chi tiết sản phẩm + biến thể + tồn kho | `BE-08` | N1 | 1 |
-| `FE-03` | Header + Footer nối API thật | `BE-07`, `FE-00` | N2 | 1 |
+| `FE-03` | Header + Footer nối API thật | `BE-07`, `FND-00` | N2 | 1 |
 | `FE-04` | Trang chủ: banner, danh mục, sản phẩm nổi bật | `BE-07`, `FE-03` | N2 | 2 |
 | `FE-05` | Trang danh sách + bộ lọc | `BE-08` | N2 | 2 |
 | `FE-06` | Trang chi tiết sản phẩm ⭐ | `BE-09`, `FE-05` | N2 | 3 |
@@ -375,7 +387,7 @@ Nhiều task nhỏ, đều là CRUD, hai người chia đôi làm song song.
 | Người | Tính năng phụ trách |
 |---|---|
 | **N1** | Auth API · Danh mục & thương hiệu · Catalog công khai (API) · Kho · **Tính tiền & Coupon** ⭐ · **Trạng thái đơn & tồn kho** ⭐ · VNPay · **Quyết toán cọc** ⭐ · Nội dung (admin) · Báo cáo |
-| **N2** | Nền 2 frontend · Auth khách · Sản phẩm & biến thể · Catalog công khai (giao diện) · Khuyến mãi · Giỏ & Checkout · Đơn thuê (giao diện) · Đánh giá & Liên hệ · Job nền · Cấu hình |
+| **N2** | Nền frontend dùng chung · Auth khách · Sản phẩm & biến thể · Catalog công khai (giao diện) · Khuyến mãi · Giỏ & Checkout · Đơn thuê (giao diện) · Đánh giá & Liên hệ · Job nền · Cấu hình |
 
 Ba task ⭐ nặng nhất đều rơi vào N1 — nếu N1 chậm thì N2 nhận bớt phần giao diện của GĐ 9 để cân lại.
 
@@ -398,8 +410,9 @@ Task chỉ được coi là xong khi đủ **cả 5** điều kiện:
 - Mỗi người làm trên nhánh riêng, đặt tên theo mã task: `be-13-pricing-service`.
 - Merge vào `main` khi task xong và chạy được.
 - **Trước khi bắt đầu task mới luôn `git pull`** — nhất là sau mỗi 🔄 điểm đồng bộ.
-- File dễ đụng nhau nhất: `routes/api.php`, `bootstrap/app.php`, `DatabaseSeeder.php`. Ai sửa thì báo người kia một tiếng.
-- **Không commit file `.env`** — đã nằm trong `.gitignore`. Thêm biến mới thì thêm cả vào `.env.example` và báo người kia.
+- File dễ đụng nhau nhất: `routes/api.php`, `bootstrap/app.php`, `DatabaseSeeder.php`, và bên frontend là `src/lib/` với `src/components/ui/`. Ai sửa thì báo người kia một tiếng.
+- Trong `frontend/`, N1 làm `src/app/admin/`, N2 làm `src/app/(shop)/` — hai vùng này không đụng nhau. Chỉ `src/lib/` và `src/components/ui/` là dùng chung, và đó chính là chỗ cần dùng chung.
+- **Không commit file `.env` / `.env.local`** — đã nằm trong `.gitignore`. Thêm biến mới thì thêm cả vào `backend/.env.example` hoặc `frontend/.env.local.example` và báo người kia.
 
 ---
 

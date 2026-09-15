@@ -39,11 +39,21 @@ Nếu thiếu cái nào, mở `php.ini` của XAMPP (`C:\xampp\php\php.ini`), b�
 
 ```
 THLTW-NHOM-HUY-TUYET-24E/
-├── backend/          Laravel 12 — REST API        (cổng 8000)
-├── frontend/         Next.js 16 — giao diện khách (cổng 3000)
-├── frontend-admin/   Next.js 16 — trang quản trị  (cổng 3001)
-└── docs/             Tài liệu đặc tả và hướng dẫn
+├── backend/    Laravel 12 — REST API              (cổng 8000)
+├── frontend/   Next.js 16 — khách + quản trị      (cổng 3000)
+└── docs/       Tài liệu đặc tả và hướng dẫn
 ```
+
+**Chỉ có một source frontend.** Giao diện khách và trang quản trị nằm chung một ứng dụng Next.js, tách nhau bằng route group:
+
+```
+frontend/src/app/
+├── (shop)/    → localhost:3000/          giao diện khách  (Header + Footer)
+├── admin/     → localhost:3000/admin     trang quản trị   (Sidebar + guard)
+└── (auth)/    → /login, /register…       màn xác thực dùng chung
+```
+
+Thư mục trong dấu ngoặc `(shop)` và `(auth)` **không xuất hiện trên URL** — đó là cách Next.js gom route để dùng layout riêng. Next code-split theo route nên khách không tải code của trang quản trị.
 
 ---
 
@@ -116,15 +126,23 @@ Kết quả mong đợi: 22 migration chạy `DONE`, sau đó 5 seeder chạy `D
 cd frontend && npm install
 ```
 
+Tạo file biến môi trường:
+
 ```bash
-cd frontend-admin && npm install
+cd frontend && cp .env.local.example .env.local
+```
+
+Nội dung mặc định đã đúng cho máy local:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
 ```
 
 ---
 
 ## 4. CHẠY DỰ ÁN HẰNG NGÀY
 
-Cần **3 cửa sổ terminal** chạy song song (và MySQL trong XAMPP đang bật).
+Cần **2 cửa sổ terminal** chạy song song (và MySQL trong XAMPP đang bật).
 
 ### Terminal 1 — Backend API
 
@@ -134,21 +152,16 @@ cd backend && php artisan serve
 
 → <http://localhost:8000>
 
-### Terminal 2 — Giao diện khách
+### Terminal 2 — Frontend (cả khách lẫn quản trị)
 
 ```bash
 cd frontend && npm run dev
 ```
 
-→ <http://localhost:3000>
-
-### Terminal 3 — Trang quản trị
-
-```bash
-cd frontend-admin && npm run dev
-```
-
-→ <http://localhost:3001>
+| Địa chỉ | Giao diện |
+|---|---|
+| <http://localhost:3000> | Khách hàng |
+| <http://localhost:3000/admin> | Quản trị |
 
 ---
 
@@ -285,6 +298,8 @@ cd backend && rm -rf vendor && composer install
 ```bash
 cd frontend && rm -rf node_modules .next && npm install
 ```
+
+> Chỉ có một thư mục frontend duy nhất — không còn `frontend-admin` như bản kế hoạch ban đầu.
 
 ---
 
