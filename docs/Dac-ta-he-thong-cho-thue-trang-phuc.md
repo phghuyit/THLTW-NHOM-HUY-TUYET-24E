@@ -1165,8 +1165,8 @@ Mã lỗi (`code`) đang dùng: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `ACCOUNT_
 ### 8.1. Bản đồ route (Next.js App Router)
 
 ```
-app/
-├── (shop)/                          # Giao diện khách
+src/app/
+├── (shop)/                          # Giao diện khách — layout Header + Footer
 │   ├── page.tsx                     # S01 Trang chủ (banner, nổi bật, danh mục)
 │   ├── products/page.tsx            # S02 Danh sách & lọc sản phẩm
 │   ├── products/[slug]/page.tsx     # S03 Chi tiết sản phẩm
@@ -1177,13 +1177,16 @@ app/
 │   │   ├── page.tsx                 # S07 Hồ sơ cá nhân
 │   │   ├── orders/page.tsx          # S08 Danh sách đơn thuê
 │   │   └── orders/[code]/page.tsx   # S09 Chi tiết đơn thuê
-│   ├── login | register             # S10 Đăng nhập / Đăng ký
-│   ├── forgot-password | reset      # S11 Quên mật khẩu
 │   ├── posts | posts/[slug]         # S12 Blog & chi tiết bài viết
 │   ├── pages/[slug]                 # S13 Trang tĩnh (chính sách…)
 │   └── contact/page.tsx             # S14 Liên hệ
 │
-└── admin/                           # Giao diện quản trị
+├── (auth)/                          # Xác thực — layout riêng, dùng chung 2 bên
+│   ├── login/page.tsx               # S10 Đăng nhập (khách và admin chung)
+│   ├── register/page.tsx            # S10 Đăng ký
+│   └── forgot-password | reset-password   # S11 Quên mật khẩu
+│
+└── admin/                           # Giao diện quản trị — layout Sidebar + guard
     ├── page.tsx                     # A01 Dashboard
     ├── orders/page.tsx              # A02 Danh sách đơn thuê
     ├── orders/[code]/page.tsx       # A03 Chi tiết & xử lý đơn
@@ -1200,6 +1203,8 @@ app/
     ├── reports/page.tsx             # A14 Báo cáo
     └── settings/page.tsx            # A15 Cấu hình hệ thống
 ```
+
+> Thư mục trong dấu ngoặc `(shop)` và `(auth)` **không xuất hiện trên URL** — đây là route group của Next.js, dùng để gom route theo layout. Giao diện khách ở `localhost:3000`, trang quản trị ở `localhost:3000/admin`, chung một ứng dụng Next.js duy nhất. Next code-split theo route nên khách không tải code trang quản trị.
 
 **Ưu tiên làm trước (MVP bảo vệ được):** S01, S02, S03, S04, S05, S06, S08, S09, A01, A02, A03, A04, A05, A06, A08.
 
