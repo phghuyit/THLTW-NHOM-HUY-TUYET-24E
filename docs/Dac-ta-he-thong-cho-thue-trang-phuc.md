@@ -1,9 +1,20 @@
 # ĐẶC TẢ HỆ THỐNG CHO THUÊ TRANG PHỤC
 
-**Tên hệ thống:** Costume Rental System (CRS)
+**Tên hệ thống:** Clothes Rental System (CRS)
 **Mô hình:** 1 cửa hàng duy nhất (single-tenant)
-**Stack:** Next.js (App Router) + Laravel REST API + MySQL + Redis
-**Phiên bản tài liệu:** 1.0 — 09/09/2026
+**Stack:** Next.js 16 (App Router) + Laravel 12 REST API + MariaDB 10.4 (XAMPP)
+**Cơ sở dữ liệu:** `clothes_rental_db`
+**Phiên bản tài liệu:** 2.1 — 15/09/2026
+**Căn cứ:** `thltweb_huy_tuyet.sql` (CSDL 22 bảng — nguồn sự thật) + `GiaiThich_ChiTiet_Database_Clothes_Rental_v2.docx` + `TomTat_ChucNang_Ecommerce_THLTW.docx` (yêu cầu môn học)
+
+> **Bản 2.1** đồng bộ tài liệu với phần đã code xong (Lô 0 và Lô 1) — xem [§11 Tình trạng triển khai](#11-tình-trạng-triển-khai). Tên bảng, tên cột và ràng buộc trong §6 đã được đối chiếu tự động với schema thật trong `clothes_rental_db`.
+
+> **Ghi chú phiên bản.** Bản 2.0 viết lại toàn bộ theo CSDL 22 bảng đã chốt. So với bản 1.0:
+> - Bỏ mô hình cá thể (`rental_units`) và khoá lịch (`bookings`) → tồn kho quản lý bằng `product_variants.stock_quantity`.
+> - Bỏ `inspections` / `inspection_items` / `maintenance_tasks` / `shipments` / `order_fees` / `refunds` → gộp vào **`rental_returns`** (biên bản trả đồ + phí phạt + hoàn cọc) và **`payments`**.
+> - Bỏ `wishlists`, `addresses`, `pricing_tiers`; `promotions` nhiều loại → thay bằng **`coupons`** giảm số tiền cố định.
+> - Phân quyền rút gọn còn **`admin` / `member`** ngay trên cột `users.role`, không dùng bảng role trung gian.
+> - Bổ sung khối nội dung (`post_categories`, `posts`, `pages`, `banners`, `menus`, `contacts`, `system_configs`) và khối kho (`stock_receipts`, `stock_receipt_details`).
 
 ---
 
@@ -14,11 +25,12 @@
 3. [Nghiệp vụ cốt lõi](#3-nghiệp-vụ-cốt-lõi)
 4. [State machine](#4-state-machine)
 5. [Business rules](#5-business-rules)
-6. [Mô hình dữ liệu (ERD)](#6-mô-hình-dữ-liệu-erd)
+6. [Mô hình dữ liệu — 22 bảng](#6-mô-hình-dữ-liệu--22-bảng)
 7. [Danh sách API](#7-danh-sách-api)
 8. [Danh sách màn hình & wireframe](#8-danh-sách-màn-hình--wireframe)
 9. [Kiến trúc thư mục](#9-kiến-trúc-thư-mục)
 10. [Lộ trình triển khai](#10-lộ-trình-triển-khai)
+11. [Tình trạng triển khai](#11-tình-trạng-triển-khai)
 
 ---
 
@@ -26,64 +38,75 @@
 
 ### 1.1. Bài toán
 
-Cửa hàng cho thuê trang phục (áo dài, vest, váy cưới, đồ cosplay, đồ biểu diễn, đồ hoá trang...). Khác với bán hàng thương mại điện tử thông thường ở **4 điểm cốt tử** — đây cũng là phần "ăn điểm" khi bảo vệ đồ án:
+Website cho thuê trang phục (váy dạ hội, áo dài, vest & suit, đồ cosplay, đồ biểu diễn…). Khách xem catalog, chọn **khoảng ngày thuê**, đặt đơn, trả tiền thuê **kèm tiền cọc**; đến hạn mang trả, cửa hàng kiểm tra tình trạng, tính phí phạt nếu có và hoàn lại phần cọc còn lại.
 
-| Điểm khác biệt | Hệ quả kỹ thuật |
+Khác biệt so với một website thương mại điện tử bán hàng thông thường — cũng là phần "ăn điểm" khi bảo vệ:
+
+| Điểm khác biệt | Hệ quả trong CSDL 22 bảng |
 |---|---|
-| Món đồ **quay vòng**, cho thuê xong lại cho thuê tiếp | Tồn kho là **lịch bận theo thời gian**, không phải con số `quantity` |
-| Mỗi món có **cá thể vật lý riêng** (2 cái áo dài size M đỏ là 2 cá thể khác nhau, tình trạng khác nhau) | Phải quản lý tới cấp `rental_unit`, có mã QR/barcode riêng |
-| Giữa 2 lượt thuê phải có **thời gian đệm** để giặt ủi, kiểm tra | Availability phải cộng thêm `buffer` trước và sau |
-| Có **tiền cọc**, **phí phạt trễ**, **bồi thường hư hỏng** | Dòng tiền 2 chiều: thu → giữ cọc → quyết toán → hoàn trả |
+| Đơn hàng gắn với **khoảng thời gian**, không chỉ số lượng | `order_items.rent_start_date`, `rent_end_date`, `rental_days` |
+| Có **tiền cọc** phải giữ rồi hoàn lại | `products.deposit_rate_percent`, `products.original_value`, `orders.total_deposit_fee`, `orders.refunded_deposit` |
+| Đồ **quay vòng**: thuê xong lại cho thuê tiếp | `stock_quantity` trừ khi giao, cộng lại khi nhận đồ đạt yêu cầu (BR-03) |
+| Có **kiểm tra tình trạng khi trả**, phạt và bồi thường | `rental_returns` (phí phạt, lý do, số cọc hoàn thực tế) |
+| Dòng tiền **hai chiều** (thu tiền → hoàn cọc) | `payments.type = payment / deposit_refund` |
+| Đồ hỏng phải **loại khỏi kho có chứng từ** | `stock_receipts` loại `export` + `stock_receipt_details` |
 
 ### 1.2. Phạm vi (In scope)
 
-- Catalog trang phục theo danh mục / biến thể size–màu / cá thể
-- Kiểm tra tình trạng rảnh theo khoảng ngày thuê (availability engine)
-- Giỏ thuê, đặt đơn, giữ chỗ tạm (hold)
-- Đặt cọc + thanh toán online (VNPay/MoMo sandbox), thanh toán tại quầy
-- Giao nhận: nhận tại cửa hàng hoặc ship 2 chiều
-- Trả đồ, kiểm tra tình trạng, tính phí phát sinh, hoàn cọc
-- Vòng đời hậu thuê: giặt ủi → sửa chữa → sẵn sàng / thanh lý
-- Khuyến mãi, đánh giá, thông báo, báo cáo doanh thu
+- Catalog: danh mục đa cấp, thương hiệu, sản phẩm, biến thể size–màu, bộ sưu tập ảnh
+- Tìm kiếm, lọc, sắp xếp, chi tiết sản phẩm, sản phẩm nổi bật, đếm lượt xem
+- Đăng ký / đăng nhập / quên mật khẩu qua email / hồ sơ cá nhân
+- Giỏ thuê (lưu phía client), chọn ngày thuê, áp mã giảm giá, đặt đơn
+- Hai hình thức nhận đồ: **đến shop lấy** (`store_pickup`) hoặc **giao tận nơi** (`delivery`)
+- Hai phương thức thanh toán: **tiền mặt** (`cash`) và **VNPay** (`vnpay`)
+- Quản trị đơn thuê theo vòng đời 7 trạng thái, biên bản trả đồ, phí phạt, hoàn cọc
+- Quản lý kho: phiếu nhập (`import`), phiếu xuất huỷ (`export`)
+- Khuyến mãi bằng mã giảm số tiền cố định
+- Đánh giá sản phẩm 1–5 sao sau khi thuê
+- Quản trị nội dung: bài viết/blog, trang tĩnh, banner, menu, liên hệ
+- Cấu hình website động (tên shop, hotline, địa chỉ, logo…)
+- Báo cáo doanh thu, top sản phẩm, tồn kho
 
 ### 1.3. Ngoài phạm vi (Out of scope)
 
 - Nhiều cửa hàng / marketplace nhiều chủ shop
-- Tích hợp API hãng vận chuyển thật (GHN/GHTK) — chỉ mô phỏng trạng thái
+- Tích hợp API hãng vận chuyển thật (GHN/GHTK) — phí ship nhập tay theo bảng cấu hình
 - Kế toán thuế, hoá đơn điện tử
 - App mobile native
+- Quản lý tới từng cá thể vật lý có mã QR riêng (đã lược bỏ ở bản 2.0)
 
 ### 1.4. Kiến trúc tổng thể
 
 ```
 ┌────────────────────┐        ┌─────────────────────┐
-│   Next.js (App)    │        │   Next.js Admin     │
+│   Next.js (Shop)   │        │   Next.js Admin     │
 │   - SSR/ISR catalog│        │   - CSR dashboard   │
-│   - Client cart    │        │                     │
+│   - Giỏ thuê client│        │                     │
 └─────────┬──────────┘        └──────────┬──────────┘
           │  REST /api/v1  (JSON)        │
           └──────────────┬───────────────┘
                          ▼
             ┌────────────────────────┐
-            │   Laravel 11 API       │
+            │   Laravel 12 API       │
             │  Controller → Service  │
-            │  → Repository → Model  │
-            │  Sanctum / Policies    │
-            │  Queue (Jobs) + Events │
+            │  → Model (Eloquent)    │
+            │  Sanctum + middleware  │
+            │       role:admin       │
             └───┬───────────┬────────┘
                 │           │
          ┌──────▼───┐   ┌───▼──────────┐
-         │  MySQL 8 │   │ Redis        │
-         │          │   │ cache + lock │
-         └──────────┘   │ + queue      │
-                        └──────────────┘
+         │ MariaDB  │   │ Storage      │
+         │ 22 bảng  │   │ ảnh sản phẩm │
+         └──────────┘   └──────────────┘
                 │
-        ┌───────▼────────┬──────────────┬─────────────┐
-        │ VNPay sandbox  │ Mail/SMTP    │ S3/local FS │
-        └────────────────┴──────────────┴─────────────┘
+        ┌───────▼────────┬──────────────┐
+        │ VNPay sandbox  │ Mail / SMTP  │
+        └────────────────┴──────────────┘
 ```
 
-**Vì sao tách rời (headless):** Next.js lo SEO trang catalog (SSR/ISR) + trải nghiệm chọn ngày mượt; Laravel lo nghiệp vụ, transaction, khoá tồn kho. Ranh giới rõ ràng cũng dễ trình bày khi bảo vệ.
+**Vì sao tách rời (headless):** Next.js lo SEO trang catalog (SSR/ISR) và trải nghiệm chọn ngày; Laravel lo nghiệp vụ, transaction, tính tiền và trừ kho. Ranh giới rõ ràng, mỗi bên test độc lập, dễ trình bày khi bảo vệ.
+
+**Vì sao không dùng bảng role trung gian:** quy mô 1 shop chỉ có 2 vai trò. Kiểm tra `$request->user()->role === 'admin'` ngay tại middleware nhanh hơn và ít bảng hơn — đúng định hướng đã chốt trong tài liệu CSDL.
 
 ---
 
@@ -91,41 +114,40 @@ Cửa hàng cho thuê trang phục (áo dài, vest, váy cưới, đồ cosplay,
 
 ### 2.1. Danh sách actor
 
-| Actor | Mô tả | Kênh sử dụng |
-|---|---|---|
-| **Khách vãng lai** (Guest) | Xem catalog, tra cứu lịch trống, không đặt được đơn | Web public |
-| **Khách hàng** (Customer) | Đặt thuê, thanh toán, theo dõi đơn, đánh giá | Web public (đã đăng nhập) |
-| **Nhân viên bán hàng** (Staff) | Xử lý đơn, tạo đơn tại quầy, giao/nhận đồ, kiểm tra khi trả | Admin panel |
-| **Nhân viên kho/giặt ủi** (Warehouse) | Soạn đồ, cập nhật vòng đời cá thể: giặt → sửa → sẵn sàng | Admin panel |
-| **Quản lý** (Manager) | Duyệt hoàn cọc/miễn phạt, cấu hình giá, xem báo cáo | Admin panel |
-| **Admin hệ thống** | Quản lý user, phân quyền, cấu hình hệ thống | Admin panel |
-| **Hệ thống** (System/Cron) | Job tự động: huỷ đơn quá hạn thanh toán, nhắc trả đồ, tính phí trễ | Nền |
+| Actor | `users.role` | Mô tả | Kênh sử dụng |
+|---|---|---|---|
+| **Khách vãng lai** (Guest) | — (chưa đăng nhập) | Xem catalog, đọc bài viết, gửi liên hệ. **Không đặt thuê được** | Web public |
+| **Khách hàng** (Member) | `member` | Đặt thuê, thanh toán, theo dõi đơn, đánh giá | Web public (đã đăng nhập) |
+| **Quản trị viên** (Admin) | `admin` | Toàn quyền: catalog, đơn thuê, trả đồ, kho, khuyến mãi, nội dung, cấu hình, báo cáo | Admin panel |
+| **Hệ thống** (Cron) | — | Job tự động: huỷ đơn quá hạn thanh toán, nhắc trả đồ, cảnh báo trễ hạn | Nền |
 
-### 2.2. Ma trận phân quyền (RBAC)
+> Trong CSDL, cột `rental_returns.staff_id` trỏ tới `users.id` — đó là **tài khoản `admin`** đã thực hiện kiểm tra và nhận lại đồ. Hệ thống không có vai trò "nhân viên" tách riêng; nếu shop cần nhiều người làm, cấp thêm tài khoản `admin`.
 
-Dùng `spatie/laravel-permission`. Quyền đặt tên `<module>.<action>`.
+### 2.2. Ma trận phân quyền
 
-| Nhóm quyền | Customer | Staff | Warehouse | Manager | Admin |
-|---|:-:|:-:|:-:|:-:|:-:|
-| `catalog.view` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `catalog.manage` (CRUD sản phẩm, giá) | | | | ✓ | ✓ |
-| `unit.manage` (cá thể, QR, tình trạng) | | ✓ | ✓ | ✓ | ✓ |
-| `unit.lifecycle` (giặt/sửa/thanh lý) | | | ✓ | ✓ | ✓ |
-| `order.create` | ✓ | ✓ | | ✓ | ✓ |
-| `order.view.own` | ✓ | | | | |
-| `order.view.all` | | ✓ | ✓ | ✓ | ✓ |
-| `order.confirm` / `order.cancel` | | ✓ | | ✓ | ✓ |
-| `order.handover` (giao đồ) | | ✓ | ✓ | ✓ | ✓ |
-| `order.return_inspect` (kiểm khi trả) | | ✓ | ✓ | ✓ | ✓ |
-| `fee.apply` (áp phí phạt) | | ✓ | | ✓ | ✓ |
-| `fee.waive` (miễn/giảm phí phạt) | | | | ✓ | ✓ |
-| `refund.approve` (duyệt hoàn cọc) | | | | ✓ | ✓ |
-| `payment.record` (ghi nhận thu tiền mặt) | | ✓ | | ✓ | ✓ |
-| `promotion.manage` | | | | ✓ | ✓ |
-| `report.view` | | | | ✓ | ✓ |
-| `user.manage` / `role.manage` | | | | | ✓ |
+Kiểm tra quyền bằng middleware `role:admin` (không dùng `spatie/laravel-permission`).
 
-> **Nguyên tắc tách quyền quan trọng:** người **áp phí** và người **miễn phí** phải khác nhau (Staff áp — Manager miễn). Đây là điểm kiểm soát nội bộ, hội đồng rất hay hỏi.
+| Chức năng | Guest | Member | Admin |
+|---|:-:|:-:|:-:|
+| Xem catalog, chi tiết sản phẩm, bài viết, trang tĩnh | ✓ | ✓ | ✓ |
+| Gửi form liên hệ (`contacts`) | ✓ | ✓ | ✓ |
+| Đăng ký / đăng nhập / quên mật khẩu | ✓ | — | — |
+| Sửa hồ sơ, đổi mật khẩu, đổi avatar | | ✓ | ✓ |
+| Đặt đơn thuê (`orders`) | | ✓ | ✓ |
+| Xem đơn **của mình**, huỷ đơn khi còn `pending` | | ✓ | |
+| Đánh giá sản phẩm đã thuê xong | | ✓ | |
+| Xem / xử lý **mọi** đơn thuê | | | ✓ |
+| Đổi trạng thái đơn, ghi nhận thanh toán | | | ✓ |
+| Lập biên bản trả đồ, áp phí phạt, hoàn cọc | | | ✓ |
+| CRUD danh mục / thương hiệu / sản phẩm / biến thể / ảnh | | | ✓ |
+| Lập phiếu nhập – xuất kho | | | ✓ |
+| CRUD mã giảm giá | | | ✓ |
+| Duyệt / ẩn đánh giá, trả lời liên hệ | | | ✓ |
+| CRUD bài viết, trang tĩnh, banner, menu | | | ✓ |
+| Sửa cấu hình hệ thống, quản lý & khoá tài khoản | | | ✓ |
+| Xem báo cáo doanh thu / tồn kho | | | ✓ |
+
+> **Nguyên tắc bắt buộc đăng nhập để thuê.** `orders.user_id` là `NOT NULL`. Khách vãng lai xem thoải mái, nhưng muốn đặt phải có tài khoản — vì đơn thuê là một hợp đồng giao tài sản, cần danh tính để đòi đồ và xử lý tranh chấp.
 
 ---
 
@@ -136,654 +158,1005 @@ Dùng `spatie/laravel-permission`. Quyền đặt tên `<module>.<action>`.
 ```
 CRS
 ├── A. Catalog & Kho
-│   ├── A1. Quản lý danh mục, dịp sử dụng (cưới, tết, cosplay, biểu diễn)
-│   ├── A2. Quản lý sản phẩm (thông tin, ảnh, chất liệu, bảng size)
-│   ├── A3. Quản lý biến thể (size × màu) + giá thuê + tiền cọc
-│   ├── A4. Quản lý cá thể (rental unit) — mã QR, tình trạng, số lượt thuê
-│   └── A5. Bảng giá & gói thuê (theo ngày / gói 2–3 ngày / thuê dài ngày)
+│   ├── A1. Danh mục trang phục đa cấp (categories, parent_id)
+│   ├── A2. Thương hiệu / nhà thiết kế (brands)
+│   ├── A3. Sản phẩm: mô tả, giá thuê/ngày, % cọc, giá trị gốc (products)
+│   ├── A4. Bộ sưu tập ảnh nhiều góc chụp (product_images)
+│   ├── A5. Biến thể Size × Màu + SKU + tồn kho (product_variants)
+│   └── A6. Phiếu nhập / xuất huỷ kho (stock_receipts + stock_receipt_details)
 │
 ├── B. Tìm kiếm & Đặt thuê
-│   ├── B1. Duyệt/lọc catalog (danh mục, size, màu, giá, dịp)
-│   ├── B2. Chọn khoảng ngày thuê → kiểm tra lịch trống (availability)
-│   ├── B3. Giỏ thuê (nhiều món, cùng/khác khoảng ngày)
-│   ├── B4. Giữ chỗ tạm (soft hold 15 phút)
-│   └── B5. Đặt đơn (checkout): thông tin nhận đồ, số đo, ghi chú
+│   ├── B1. Duyệt / lọc catalog (danh mục, thương hiệu, size, màu, giá)
+│   ├── B2. Chi tiết sản phẩm + chọn biến thể + chọn khoảng ngày thuê
+│   ├── B3. Giỏ thuê (lưu localStorage, nhiều món, mỗi món một khoảng ngày)
+│   ├── B4. Áp mã giảm giá (coupons)
+│   └── B5. Checkout: chọn hình thức nhận đồ, phương thức thanh toán
 │
 ├── C. Thanh toán & Cọc
-│   ├── C1. Tính tiền: tiền thuê + cọc + phí ship − khuyến mãi
-│   ├── C2. Thanh toán online (VNPay/MoMo) — cọc giữ chỗ hoặc trả đủ
-│   ├── C3. Thanh toán tại quầy (tiền mặt / chuyển khoản)
-│   ├── C4. Quyết toán cuối kỳ: cọc − phí phát sinh
-│   └── C5. Hoàn cọc (tự động hoặc chờ duyệt)
+│   ├── C1. Tính tiền: tiền thuê + tiền cọc + phí ship − giảm giá
+│   ├── C2. Thanh toán VNPay (online) — xác nhận qua IPN
+│   ├── C3. Thanh toán tiền mặt khi nhận đồ / tại shop
+│   ├── C4. Quyết toán khi trả: cọc − phí phạt
+│   └── C5. Hoàn cọc (payments.type = deposit_refund)
 │
 ├── D. Vận hành đơn
-│   ├── D1. Xác nhận đơn / huỷ đơn
-│   ├── D2. Soạn đồ — gán cá thể cụ thể (picking)
-│   ├── D3. Giao đồ: nhận tại shop (quét QR) hoặc ship
-│   ├── D4. Đang thuê — nhắc hạn trả
-│   ├── D5. Gia hạn thuê
-│   ├── D6. Nhận lại đồ + biên bản kiểm tra tình trạng
-│   └── D7. Tính phí phát sinh (trễ / hư / mất / vệ sinh nặng)
+│   ├── D1. Xác nhận / huỷ đơn
+│   ├── D2. Soạn đồ, trừ tồn kho, giao đi hoặc chờ khách tới lấy
+│   ├── D3. Đang thuê — nhắc hạn trả
+│   ├── D4. Khách gửi trả — lập biên bản kiểm tra (rental_returns)
+│   ├── D5. Tính phí phạt (trễ hạn / hư hỏng / mất)
+│   └── D6. Hoàn cọc & hoàn tất đơn, trả đồ về kho
 │
-├── E. Hậu thuê (vòng đời cá thể)
-│   ├── E1. Kiểm tra sau trả
-│   ├── E2. Giặt ủi
-│   ├── E3. Sửa chữa
-│   ├── E4. Trả lại kho (sẵn sàng)
-│   └── E5. Thanh lý / báo mất
+├── E. Khuyến mãi & Tương tác
+│   ├── E1. Mã giảm giá theo số tiền cố định (coupons)
+│   ├── E2. Đánh giá 1–5 sao sau khi thuê (reviews)
+│   └── E3. Liên hệ & góp ý, admin phản hồi (contacts)
 │
-└── F. Hỗ trợ
-    ├── F1. Khuyến mãi, mã giảm giá
-    ├── F2. Đánh giá & hình ảnh khách gửi
-    ├── F3. Thông báo (email / in-app)
-    ├── F4. Báo cáo: doanh thu, top sản phẩm, tỷ lệ khai thác, tồn ế
-    └── F5. Nhật ký hệ thống (audit log)
+├── F. Nội dung website
+│   ├── F1. Chủ đề bài viết & bài viết blog (post_categories, posts)
+│   ├── F2. Trang tĩnh: giới thiệu, chính sách thuê, bảng giá cọc (pages)
+│   ├── F3. Banner / slider quảng cáo (banners)
+│   └── F4. Menu header & footer đa cấp (menus)
+│
+└── G. Quản trị hệ thống
+    ├── G1. Quản lý tài khoản, khoá / mở khoá (users.status)
+    ├── G2. Cấu hình website động (system_configs)
+    └── G3. Báo cáo: doanh thu, top sản phẩm, tồn kho, đơn trễ hạn
 ```
 
 ### 3.2. Use case chính
 
 | Mã | Use case | Actor | Mức ưu tiên |
 |---|---|---|---|
-| UC-01 | Tìm & lọc trang phục theo ngày rảnh | Guest, Customer | Bắt buộc |
-| UC-02 | Xem chi tiết sản phẩm + lịch bận | Guest, Customer | Bắt buộc |
-| UC-03 | Thêm vào giỏ thuê với khoảng ngày | Customer | Bắt buộc |
-| UC-04 | Đặt đơn & thanh toán cọc online | Customer | Bắt buộc |
-| UC-05 | Theo dõi đơn / lịch sử thuê | Customer | Bắt buộc |
-| UC-06 | Yêu cầu gia hạn | Customer | Nên có |
-| UC-07 | Huỷ đơn & hoàn tiền | Customer, Staff | Bắt buộc |
-| UC-08 | Đánh giá sau khi trả đồ | Customer | Nên có |
-| UC-09 | Tạo đơn tại quầy (walk-in) | Staff | Bắt buộc |
-| UC-10 | Soạn đồ & gán cá thể | Staff, Warehouse | Bắt buộc |
-| UC-11 | Bàn giao đồ (quét QR) | Staff | Bắt buộc |
-| UC-12 | Nhận lại & lập biên bản kiểm tra | Staff | Bắt buộc |
-| UC-13 | Áp phí phát sinh & quyết toán cọc | Staff, Manager | Bắt buộc |
-| UC-14 | Cập nhật vòng đời cá thể (giặt/sửa) | Warehouse | Bắt buộc |
-| UC-15 | Quản lý sản phẩm & bảng giá | Manager | Bắt buộc |
-| UC-16 | Xem báo cáo doanh thu / khai thác | Manager | Nên có |
-| UC-17 | Tự động huỷ đơn quá hạn thanh toán | System | Bắt buộc |
-| UC-18 | Tự động nhắc trả đồ & tính phí trễ | System | Bắt buộc |
+| UC-01 | Duyệt & lọc catalog trang phục | Guest, Member | Bắt buộc |
+| UC-02 | Xem chi tiết sản phẩm, chọn size/màu | Guest, Member | Bắt buộc |
+| UC-03 | Đăng ký / đăng nhập / quên mật khẩu | Guest | Bắt buộc |
+| UC-04 | Thêm vào giỏ thuê kèm khoảng ngày | Member | Bắt buộc |
+| UC-05 | Áp mã giảm giá | Member | Bắt buộc |
+| UC-06 | Đặt đơn & thanh toán (VNPay hoặc tiền mặt) | Member | Bắt buộc |
+| UC-07 | Theo dõi đơn / lịch sử thuê | Member | Bắt buộc |
+| UC-08 | Huỷ đơn khi còn `pending` | Member | Bắt buộc |
+| UC-09 | Đánh giá sản phẩm sau khi hoàn tất | Member | Nên có |
+| UC-10 | Gửi liên hệ / góp ý | Guest, Member | Nên có |
+| UC-11 | Xác nhận đơn & ghi nhận thanh toán | Admin | Bắt buộc |
+| UC-12 | Giao đồ / bàn giao tại shop, trừ tồn kho | Admin | Bắt buộc |
+| UC-13 | Nhận lại đồ, lập biên bản, tính phạt, hoàn cọc | Admin | Bắt buộc |
+| UC-14 | Quản lý sản phẩm, biến thể, ảnh | Admin | Bắt buộc |
+| UC-15 | Lập phiếu nhập / xuất huỷ kho | Admin | Bắt buộc |
+| UC-16 | Quản lý mã giảm giá | Admin | Bắt buộc |
+| UC-17 | Quản lý bài viết, trang tĩnh, banner, menu | Admin | Bắt buộc |
+| UC-18 | Trả lời liên hệ khách hàng | Admin | Nên có |
+| UC-19 | Xem báo cáo doanh thu & tồn kho | Admin | Nên có |
+| UC-20 | Cấu hình website (tên shop, hotline, logo…) | Admin | Bắt buộc |
+| UC-21 | Tự động huỷ đơn quá hạn thanh toán | System | Bắt buộc |
+| UC-22 | Tự động nhắc trả đồ & cảnh báo trễ hạn | System | Bắt buộc |
 
 ### 3.3. Luồng nghiệp vụ chính (happy path)
 
 ```
-KHÁCH                        HỆ THỐNG                      CỬA HÀNG
+KHÁCH                        HỆ THỐNG                      CỬA HÀNG (ADMIN)
   │
-  ├─ Chọn ngày thuê ────────► Kiểm tra availability
-  │                            (loại trừ booking chồng lấn
-  │                             + buffer giặt ủi)
-  │◄── Hiển thị món còn rảnh ─┘
+  ├─ Chọn sản phẩm ─────────► Kiểm tra stock_quantity > 0
+  │                            của biến thể size/màu
+  │◄── Hiện "Còn N bộ" ───────┘
   │
-  ├─ Thêm giỏ ──────────────► Tạo soft hold (TTL 15')
-  ├─ Checkout ──────────────► Tạo Order (pending_payment)
-  │                            + khoá cá thể tạm thời
-  ├─ Thanh toán cọc ────────► VNPay IPN → xác nhận
-  │                            Order → confirmed
-  │                            Booking → confirmed (khoá cứng)
+  ├─ Chọn ngày nhận / trả ──► Tính rental_days, tiền thuê, tiền cọc
+  ├─ Thêm vào giỏ ──────────► Lưu localStorage (chưa chạm DB)
+  ├─ Nhập mã giảm giá ──────► Kiểm tra hạn dùng, lượt dùng, đơn tối thiểu
+  ├─ Checkout ──────────────► Tạo Order (pending, unpaid)
+  │                            + order_items kèm ngày thuê
+  │
+  ├─ Thanh toán VNPay ──────► IPN xác thực chữ ký
+  │   (hoặc chọn cash)         → payments (success)
+  │                            → payment_status = paid
   │                                                   │
-  │                            Thông báo cho shop ───►├─ Soạn đồ, gán cá thể
-  │                                                   │  Order → preparing
+  │                            Thông báo cho shop ───►├─ Xác nhận đơn
+  │                            order_status=confirmed │
   │                                                   │
-  ├─ Đến nhận / nhận ship ◄──────────────────────────┤─ Quét QR bàn giao
-  │                            Order → in_use          │  Unit → rented
+  │                            Trừ stock_quantity ◄───┤─ Soạn đồ & giao
+  │                            order_status=delivering│  (hoặc khách tới lấy)
+  │                                                   │
+  ├─ Nhận đồ ◄───────────────  order_status=renting   │
   │                            Bắt đầu đếm hạn trả
   │
   │  ... đang thuê ...
-  │  (T-1 ngày) ◄───────────  Job nhắc trả đồ
+  │  (T-1 ngày) ◄───────────  Job nhắc trả đồ qua email
   │
-  ├─ Trả đồ ─────────────────────────────────────────►├─ Quét QR nhận lại
-  │                                                   │  Lập biên bản kiểm tra
-  │                            Order → inspecting     │
-  │                            Tính phí trễ/hư ◄──────┤─ Nhập tình trạng
-  │                            Quyết toán cọc         │
-  │◄── Thông báo số tiền hoàn ─┤                      │
-  │                            Order → completed      │
-  │                            Unit → cleaning ──────►├─ Giặt ủi → sẵn sàng
-  ├─ Đánh giá ───────────────► Lưu review
+  ├─ Gửi trả đồ ────────────────────────────────────►├─ Nhận lại & kiểm tra
+  │                            order_status=returning │
+  │                            Tạo rental_returns ◄───┤─ Nhập tình trạng,
+  │                            penalty_fee            │  lý do phạt
+  │                            deposit_refund_amount  │
+  │◄── Thông báo số cọc hoàn ──┤                      │
+  │                            payments(deposit_refund)
+  │                            order_status=completed │
+  │                            Cộng lại stock_quantity│
+  ├─ Đánh giá ───────────────► Lưu reviews
 ```
 
-### 3.4. Đặc tả chi tiết một số use case then chốt
+### 3.4. Đặc tả chi tiết các use case then chốt
 
-#### UC-04: Đặt đơn & thanh toán cọc
-
-| Mục | Nội dung |
-|---|---|
-| **Tiền điều kiện** | Khách đã đăng nhập; giỏ thuê có ≥1 dòng; mọi dòng còn hold hợp lệ |
-| **Luồng chính** | 1. Khách vào trang checkout<br>2. Hệ thống **kiểm tra lại availability** (chống race condition)<br>3. Khách chọn hình thức nhận: tại shop / giao tận nơi<br>4. Khách nhập địa chỉ, số điện thoại, số đo (nếu cần sửa vừa người)<br>5. Khách nhập mã giảm giá (tuỳ chọn)<br>6. Hệ thống tính: `tổng thuê + tổng cọc + phí ship − giảm giá`<br>7. Khách chọn: **trả cọc trước** (mặc định) hoặc **trả đủ**<br>8. Khách xác nhận điều khoản → tạo `Order` trạng thái `pending_payment`, tạo `Booking` cho từng dòng ở trạng thái `held`<br>9. Redirect sang cổng thanh toán<br>10. Cổng trả kết quả qua **IPN/webhook** → tạo `Payment` thành công<br>11. `Order → confirmed`, `Booking → confirmed`, gửi email xác nhận |
-| **Luồng phụ 4a** | Địa chỉ ngoài vùng giao → chỉ cho phép nhận tại shop |
-| **Luồng phụ 6a** | Mã giảm giá hết hạn/không đủ điều kiện → báo lỗi, giữ nguyên giỏ |
-| **Ngoại lệ 2a** | Món vừa bị người khác đặt mất → thông báo tên món, gợi ý biến thể/ngày khác, loại khỏi giỏ |
-| **Ngoại lệ 10a** | Thanh toán thất bại / khách bỏ giữa chừng → đơn giữ `pending_payment` trong 30 phút, sau đó job `ExpireUnpaidOrders` huỷ đơn và nhả booking |
-| **Hậu điều kiện** | Đơn `confirmed`, các cá thể bị khoá lịch, đã ghi nhận `Payment` cọc |
-
-#### UC-12 + UC-13: Nhận lại đồ, kiểm tra và quyết toán
+#### UC-06: Đặt đơn & thanh toán
 
 | Mục | Nội dung |
 |---|---|
-| **Tiền điều kiện** | Đơn ở trạng thái `in_use` hoặc `overdue` |
-| **Luồng chính** | 1. Staff quét QR từng cá thể khách trả<br>2. Hệ thống đối chiếu cá thể ↔ đơn; cảnh báo nếu trả nhầm/thiếu<br>3. Staff chọn tình trạng mỗi cá thể: `nguyên vẹn` / `bẩn nặng` / `hư hỏng nhẹ` / `hư hỏng nặng` / `mất`<br>4. Staff chụp ảnh minh chứng (bắt buộc nếu không phải "nguyên vẹn")<br>5. Hệ thống tự tính phí trễ theo số ngày quá hạn<br>6. Hệ thống gợi ý phí hư hỏng theo bảng cấu hình; Staff có thể chỉnh trong biên độ cho phép<br>7. Hệ thống quyết toán: `hoàn = cọc − tổng phí phát sinh`<br>8. Nếu `hoàn ≥ 0` → tạo `Refund`; nếu `hoàn < 0` → tạo công nợ khách phải trả thêm<br>9. `Order → completed` (hoặc `disputed` nếu khách không đồng ý)<br>10. Cá thể chuyển `cleaning` (hoặc `repairing` / `lost`) |
-| **Luồng phụ 6a** | Phí vượt biên độ Staff → đơn chuyển `pending_approval`, chờ Manager duyệt |
-| **Ngoại lệ 2a** | Khách trả thiếu 1 món → phần đã trả xử lý bình thường, món thiếu giữ `in_use` và tiếp tục tính phí trễ |
-| **Hậu điều kiện** | Cọc được quyết toán, cá thể vào vòng đời hậu thuê |
+| **Tiền điều kiện** | Khách đã đăng nhập (`users.status = 'active'`); giỏ thuê có ≥ 1 dòng; mọi biến thể còn `stock_quantity` ≥ số lượng thuê |
+| **Luồng chính** | 1. Khách vào trang checkout<br>2. Hệ thống **kiểm tra lại tồn kho** của từng biến thể (chống đặt vượt kho)<br>3. Khách chọn `delivery_type`: `store_pickup` (miễn phí) hoặc `delivery` (có phí ship)<br>4. Khách nhập `customer_name`, `customer_phone`, `customer_email`; nếu `delivery` thì bắt buộc `shipping_address`<br>5. Khách nhập mã giảm giá (tuỳ chọn) → hệ thống kiểm tra BR-20<br>6. Hệ thống tính `total_rental_fee`, `total_deposit_fee`, `shipping_fee`, `discount_amount`, `grand_total` (BR-10 → BR-13)<br>7. Khách chọn `payment_method`: `cash` hoặc `vnpay`<br>8. Khách xác nhận điều khoản → tạo `orders` (`order_status = pending`, `payment_status = unpaid`) + `order_items` trong **một transaction**<br>9. Nếu `vnpay`: redirect sang cổng thanh toán → IPN trả `success` → tạo `payments` (`type = payment`) → `payment_status = paid`<br>10. Nếu `cash`: đơn giữ `unpaid`, thu tiền khi giao đồ<br>11. Gửi email xác nhận kèm `order_code` |
+| **Luồng phụ 3a** | Chọn `store_pickup` → `shipping_fee = 0`, `shipping_address` để `NULL` |
+| **Luồng phụ 5a** | Mã hết hạn / hết lượt / chưa đủ `min_order_value` → báo lỗi, giữ nguyên giỏ, không tạo đơn |
+| **Ngoại lệ 2a** | Biến thể vừa hết kho → trả HTTP 409 kèm tên món, gợi ý size/màu khác, loại dòng đó khỏi giỏ |
+| **Ngoại lệ 9a** | VNPay thất bại / khách bỏ giữa chừng → đơn giữ `pending` + `unpaid`; job `ExpireUnpaidOrders` huỷ sau 30 phút |
+| **Hậu điều kiện** | Đơn tồn tại với `order_code` duy nhất; `coupons.used_count` tăng 1 nếu có áp mã; tồn kho **chưa** bị trừ (chỉ trừ khi giao đồ — BR-03) |
+
+#### UC-13: Nhận lại đồ, kiểm tra và hoàn cọc
+
+| Mục | Nội dung |
+|---|---|
+| **Tiền điều kiện** | Đơn ở trạng thái `renting` hoặc `returning` |
+| **Luồng chính** | 1. Admin mở đơn tại màn hình Trả đồ, tìm theo `order_code` / SĐT<br>2. Admin nhập `actual_return_date` (mặc định hôm nay)<br>3. Hệ thống tự tính **số ngày trễ** = `actual_return_date − max(rent_end_date)` và gợi ý phí trễ (BR-30)<br>4. Admin kiểm tra từng món, nhập thêm phí hư hỏng nếu có và ghi `penalty_reason`<br>5. Hệ thống chốt `penalty_fee` và tính `deposit_refund_amount = total_deposit_fee − penalty_fee` (không âm — BR-32)<br>6. Admin lưu → tạo `rental_returns` với `staff_id` = admin đang đăng nhập<br>7. Hệ thống tạo `payments` (`type = deposit_refund`) nếu `deposit_refund_amount > 0`<br>8. Cập nhật `orders.refunded_deposit`, `payment_status = refunded`<br>9. `order_status = completed`<br>10. **Cộng lại `stock_quantity`** cho các biến thể trả về nguyên vẹn |
+| **Luồng phụ 4a** | Món hư hỏng nặng / mất → **không** cộng lại tồn kho; admin lập `stock_receipts` loại `export` với lý do "huỷ do hư hỏng" (BR-33) |
+| **Ngoại lệ 5a** | `penalty_fee > total_deposit_fee` → `deposit_refund_amount = 0`; phần chênh ghi vào `return_note` là công nợ khách phải trả thêm, thu bằng `payments` (`type = payment`) |
+| **Ngoại lệ 2a** | Khách trả thiếu món → ghi rõ trong `return_note`, đơn giữ `returning` cho tới khi trả đủ hoặc chốt phí mất đồ |
+| **Hậu điều kiện** | Có biên bản `rental_returns`; cọc đã quyết toán; tồn kho cập nhật đúng; đơn `completed` và khách được phép đánh giá |
+
+#### UC-15: Lập phiếu nhập / xuất kho
+
+| Mục | Nội dung |
+|---|---|
+| **Tiền điều kiện** | Người dùng là `admin` |
+| **Luồng chính** | 1. Admin chọn loại phiếu: `import` (nhập đồ mới) hoặc `export` (xuất huỷ đồ lỗi)<br>2. Hệ thống sinh `receipt_code` (`PNK-2026-001` / `PXK-2026-001`)<br>3. Admin nhập `reason` và thêm từng dòng: `product_variant_id`, `quantity`, `unit_price`<br>4. Hệ thống tính `total_amount = Σ(quantity × unit_price)`<br>5. Lưu trong transaction: `stock_receipts` + `stock_receipt_details`<br>6. Cộng (`import`) hoặc trừ (`export`) `product_variants.stock_quantity` tương ứng |
+| **Ngoại lệ 6a** | Phiếu `export` làm `stock_quantity` âm → từ chối, báo số lượng tồn hiện tại |
+| **Hậu điều kiện** | Mọi biến động tồn kho ngoài luồng thuê đều có chứng từ truy vết được |
 
 ---
 
 ## 4. STATE MACHINE
 
-### 4.1. Trạng thái đơn thuê (`orders.status`)
+### 4.1. Trạng thái đơn thuê (`orders.order_status`)
 
 ```
                     ┌──────────┐
-                    │  draft   │ (giỏ hàng / đơn nháp tại quầy)
+                    │ pending  │  Khách vừa đặt, chờ shop xác nhận
                     └────┬─────┘
-                         │ checkout
-                    ┌────▼──────────────┐
-        huỷ ◄───────│  pending_payment  │──── quá 30' ──► expired
-                    └────┬──────────────┘
-                         │ thanh toán cọc thành công
+          huỷ ◄──────────┤──────── quá 30' chưa thanh toán (vnpay) ──► cancelled
+                         │ admin xác nhận
                     ┌────▼──────┐
-        huỷ ◄───────│ confirmed │
+          huỷ ◄─────│ confirmed │  Đã chốt đơn, đang soạn đồ
                     └────┬──────┘
-                         │ staff soạn đồ & gán cá thể
+                         │ giao đi / khách tới lấy → TRỪ TỒN KHO
+                    ┌────▼───────┐
+                    │ delivering │  Đang giao (hoặc chờ khách tới nhận)
+                    └────┬───────┘
+                         │ khách đã nhận đồ
                     ┌────▼──────┐
-                    │ preparing │
+                    │  renting  │  Đang trong thời gian thuê
                     └────┬──────┘
-                         │ đóng gói xong
+                         │ khách gửi trả / mang tới shop
+                    ┌────▼───────┐
+                    │ returning  │  Đang kiểm tra tình trạng đồ
+                    └────┬───────┘
+                         │ lập rental_returns, quyết toán cọc
                     ┌────▼──────┐
-                    │  ready    │ (chờ khách nhận / chờ shipper lấy)
-                    └────┬──────┘
-                         │ bàn giao (quét QR) / shipper giao thành công
-                    ┌────▼──────┐         quá hạn trả      ┌─────────┐
-                    │  in_use   │────────────────────────► │ overdue │
-                    └────┬──────┘                          └────┬────┘
-                         │  khách trả đồ                        │
-                    ┌────▼──────────────────────────────────────▼──┐
-                    │              inspecting                      │
-                    └────┬────────────────────────────┬────────────┘
-       phí vượt quyền ───┤                            │ khách không đồng ý
-                    ┌────▼───────────────────┐   ┌────▼──────┐
-                    │ pending_approval       │   │ disputed  │
-                    └────┬───────────────────┘   └────┬──────┘
-                         │ manager duyệt              │ giải quyết xong
-                    ┌────▼────────────────────────────▼──┐
-                    │            completed               │
-                    └────────────────────────────────────┘
+                    │ completed │  Hoàn tất → CỘNG LẠI TỒN KHO
+                    └───────────┘
 
-Trạng thái kết thúc: completed | cancelled | expired
+Trạng thái kết thúc: completed | cancelled
 ```
 
 **Bảng chuyển trạng thái hợp lệ:**
 
-| Từ | Sang | Điều kiện / người thực hiện |
-|---|---|---|
-| `draft` | `pending_payment` | Khách checkout, availability còn hợp lệ |
-| `pending_payment` | `confirmed` | Payment cọc `succeeded` (qua IPN) |
-| `pending_payment` | `expired` | Job cron sau 30 phút |
-| `pending_payment` | `cancelled` | Khách/Staff huỷ |
-| `confirmed` | `preparing` | Staff bắt đầu soạn đồ |
-| `confirmed` | `cancelled` | Khách huỷ (áp chính sách phí huỷ) hoặc Staff huỷ (hoàn 100%) |
-| `preparing` | `ready` | Đã gán đủ cá thể & đóng gói |
-| `ready` | `in_use` | Bàn giao thành công |
-| `in_use` | `overdue` | Job cron khi `now > return_due_at` |
-| `in_use` / `overdue` | `inspecting` | Staff nhận lại đồ |
-| `inspecting` | `completed` | Quyết toán trong quyền hạn Staff |
-| `inspecting` | `pending_approval` | Phí phát sinh vượt ngưỡng |
-| `inspecting` | `disputed` | Khách khiếu nại |
-| `pending_approval` / `disputed` | `completed` | Manager duyệt / giải quyết |
+| Từ | Sang | Ai thực hiện | Điều kiện / hệ quả |
+|---|---|---|---|
+| `pending` | `confirmed` | Admin | Còn đủ tồn kho; nếu `vnpay` thì phải `payment_status = paid` |
+| `pending` | `cancelled` | Member / Admin / Cron | Khách tự huỷ, admin từ chối, hoặc job huỷ đơn `vnpay` quá 30 phút chưa trả tiền. Trả lại lượt dùng coupon (BR-22) |
+| `confirmed` | `delivering` | Admin | **Trừ `stock_quantity`** của từng biến thể trong `order_items` (BR-03) |
+| `confirmed` | `cancelled` | Admin | Hoàn 100% nếu đã thu tiền; tồn kho chưa trừ nên không phải hoàn kho |
+| `delivering` | `renting` | Admin | Khách đã nhận đồ; nếu `cash` thì ghi nhận `payments` tại bước này → `payment_status = paid` |
+| `delivering` | `cancelled` | Admin | Giao không thành công / khách từ chối nhận → **cộng lại `stock_quantity`**, hoàn tiền đã thu |
+| `renting` | `returning` | Admin | Khách gửi trả, bắt đầu kiểm tra |
+| `returning` | `completed` | Admin | Đã lập `rental_returns`, đã quyết toán cọc, **cộng lại `stock_quantity`** phần đồ còn dùng được |
 
-> **Chốt kỹ thuật:** đưa toàn bộ bảng này vào một class `OrderStateMachine` phía Laravel; mọi chuyển trạng thái đi qua method `transitionTo()` và ghi `order_status_logs`. Không cho controller `$order->status = 'x'` tuỳ tiện.
+> **Chốt kỹ thuật.** Đưa toàn bộ bảng này vào một class `OrderStatusService::transitionTo()` phía Laravel. Không cho controller gán `$order->order_status = 'x'` tuỳ tiện — mọi chuyển trạng thái đều đi qua đúng một cửa, kiểm tra tính hợp lệ và xử lý tồn kho kèm theo trong cùng transaction.
 
-### 4.2. Trạng thái cá thể trang phục (`rental_units.status`)
+**Điểm dễ sai cần nhớ:** tồn kho **trừ ở bước `confirmed → delivering`** chứ không trừ lúc đặt đơn. Lý do: đơn `pending` có thể bị huỷ hàng loạt, trừ sớm sẽ khoá kho oan. Bù lại, phải kiểm tra tồn kho **lần nữa** ngay trước khi trừ, vì giữa lúc đặt và lúc xác nhận có thể đã có đơn khác lấy mất đồ.
+
+### 4.2. Trạng thái thanh toán (`orders.payment_status`)
 
 ```
-      ┌───────────┐   nhập kho mới
-      │ available │◄──────────────────────┐
-      └─────┬─────┘                       │
-            │ được gán vào đơn            │ QC đạt
-      ┌─────▼─────┐                 ┌─────┴──────┐
-      │ reserved  │                 │  cleaning  │
-      └─────┬─────┘                 └─────▲──────┘
-            │ bàn giao                    │ khách trả, cần giặt
-      ┌─────▼─────┐                       │
-      │  rented   │───────────────────────┤
-      └───────────┘                       │
-                                    ┌─────┴──────┐  QC không đạt
-                                    │ repairing  │◄──────────────
-                                    └─────┬──────┘
-                                          │ không sửa được
-                                    ┌─────▼──────┐
-                                    │  retired   │ (thanh lý)
-                                    └────────────┘
-
-                                    ┌────────────┐
-                                    │    lost    │ (khách làm mất)
-                                    └────────────┘
+  unpaid ──► partially_paid ──► paid ──► refunded
+     │                            ▲
+     └────────────────────────────┘
 ```
 
-| Trạng thái | Ý nghĩa | Có cho thuê được? |
+| Trạng thái | Ý nghĩa | Khi nào xuất hiện |
 |---|---|---|
-| `available` | Sẵn sàng trong kho | ✓ |
-| `reserved` | Đã gán cho đơn, chưa bàn giao | ✗ |
-| `rented` | Đang ở chỗ khách | ✗ |
-| `cleaning` | Đang giặt ủi | ✗ |
-| `repairing` | Đang sửa chữa | ✗ |
-| `retired` | Thanh lý, ngừng khai thác | ✗ |
-| `lost` | Mất, đã bồi thường | ✗ |
+| `unpaid` | Chưa thu đồng nào | Đơn `cash` mới tạo, hoặc `vnpay` chưa thanh toán xong |
+| `partially_paid` | Đã thu một phần | Khách trả trước tiền thuê tại shop, còn cọc thu sau (hoặc ngược lại) |
+| `paid` | Đã thu đủ `grand_total` | Sau IPN VNPay thành công, hoặc admin ghi nhận đủ tiền mặt |
+| `refunded` | Đã hoàn cọc sau khi quyết toán | Sau khi lập `rental_returns` và tạo `payments` loại `deposit_refund` |
 
-### 4.3. Trạng thái booking (`bookings.status`)
+### 4.3. Trạng thái giao dịch (`payments.status`)
 
-`held` (giữ tạm, có TTL) → `confirmed` (khoá cứng) → `fulfilled` (đã trả xong)
-Nhánh phụ: `held` → `released` (hết TTL / bỏ giỏ); `confirmed` → `cancelled`.
+`pending` → `success` | `failed`
 
-### 4.4. Trạng thái thanh toán (`payments.status`)
+- `pending`: đã tạo phiên thanh toán VNPay, chưa có phản hồi IPN.
+- `success`: IPN xác thực chữ ký hợp lệ và mã phản hồi thành công; hoặc admin xác nhận đã nhận tiền mặt.
+- `failed`: IPN báo thất bại, hoặc khách huỷ giữa chừng.
 
-`pending` → `succeeded` | `failed` | `expired`; `succeeded` → `refunded` | `partially_refunded`.
+> Giao dịch **hoàn cọc** (`type = deposit_refund`) ở shop nhỏ thường chi bằng tiền mặt → tạo thẳng bản ghi `success` kèm số phiếu chi trong `transaction_id`.
+
+### 4.4. Các trạng thái hiển thị khác
+
+| Bảng | Cột | Giá trị | Ý nghĩa |
+|---|---|---|---|
+| `users` | `status` | `active` / `locked` | Tài khoản bị `locked` không đăng nhập và không đặt đơn được |
+| `categories`, `brands`, `products`, `pages`, `banners`, `menus`, `post_categories` | `status` | `active` / `hidden` | `hidden` thì không trả về ở API public |
+| `posts` | `status` | `published` / `draft` / `hidden` | Chỉ `published` hiển thị ra ngoài |
+| `coupons` | `status` | `active` / `inactive` | `inactive` thì không áp được dù còn hạn |
+| `contacts` | `status` | `pending` / `replied` | Hàng đợi xử lý liên hệ của admin |
 
 ---
 
 ## 5. BUSINESS RULES
 
-### 5.1. Tồn kho & lịch bận — phần lõi nhất
+### 5.1. Tồn kho
 
-**BR-01 — Định nghĩa "rảnh".** Một cá thể `U` rảnh trong khoảng `[D1, D2]` khi:
-- `U.status ∈ {available}`, **và**
-- không tồn tại booking `B` của `U` với `B.status ∈ {held, confirmed}` mà khoảng bận của `B` chồng lấn `[D1 − prep_buffer, D2 + clean_buffer]`.
+**BR-01 — Đơn vị tồn kho là biến thể.** Tồn kho đếm tại `product_variants.stock_quantity` (theo cặp size × màu), không đếm ở cấp sản phẩm. Một sản phẩm "còn hàng" khi có ít nhất một biến thể `stock_quantity > 0` và `products.status = 'active'`.
 
-**BR-02 — Khoảng bận thực tế của booking.**
+**BR-02 — Điều kiện cho đặt thuê.** Chỉ cho thêm vào giỏ / đặt đơn khi:
 ```
-busy_from = pickup_date  − prep_buffer_days   (mặc định 0–1 ngày)
-busy_to   = return_date  + clean_buffer_days  (mặc định 1 ngày)
-```
-`clean_buffer_days` cấu hình theo **danh mục** (váy cưới 2 ngày, áo dài 1 ngày, phụ kiện 0 ngày).
-
-**BR-03 — Điều kiện chồng lấn.** Hai khoảng `[a1,a2]` và `[b1,b2]` chồng lấn khi `a1 <= b2 AND b1 <= a2`. Đây là điều kiện `WHERE` chuẩn cho câu truy vấn availability.
-
-```sql
--- Đếm số cá thể rảnh của 1 biến thể trong khoảng ngày
-SELECT COUNT(*) FROM rental_units u
-WHERE u.variant_id = :variant_id
-  AND u.status = 'available'
-  AND NOT EXISTS (
-      SELECT 1 FROM bookings b
-      WHERE b.rental_unit_id = u.id
-        AND b.status IN ('held','confirmed')
-        AND b.busy_from <= :busy_to
-        AND b.busy_to   >= :busy_from
-  );
+products.status = 'active'
+product_variants.stock_quantity >= quantity khách muốn thuê
 ```
 
-**BR-04 — Chống đặt trùng (race condition).** Khi checkout, bọc trong transaction và khoá bi quan:
+**BR-03 — Thời điểm trừ và cộng kho.**
+
+| Sự kiện | Tác động lên `stock_quantity` |
+|---|---|
+| Tạo đơn (`pending`) | Không đổi |
+| Admin xác nhận (`confirmed`) | Không đổi — chỉ kiểm tra lại còn đủ |
+| Giao đồ (`confirmed → delivering`) | **− quantity** |
+| Huỷ đơn khi đang `delivering` | **+ quantity** |
+| Hoàn tất (`returning → completed`), đồ dùng lại được | **+ quantity** |
+| Hoàn tất nhưng đồ hỏng nặng / mất | Không cộng lại; lập phiếu `export` (BR-33) |
+| Phiếu nhập kho `import` | **+ quantity** |
+| Phiếu xuất kho `export` | **− quantity** |
+
+**BR-04 — Chống trừ kho âm (race condition).** Mọi thao tác trừ kho bọc trong transaction và dùng khoá bi quan:
+
 ```php
-DB::transaction(function () use ($unitIds) {
-    RentalUnit::whereIn('id', $unitIds)->lockForUpdate()->get();
-    // kiểm tra lại availability
-    // tạo bookings
+DB::transaction(function () use ($order) {
+    foreach ($order->items as $item) {
+        $variant = ProductVariant::whereKey($item->product_variant_id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($variant->stock_quantity < $item->quantity) {
+            throw new OutOfStockException($variant->sku);
+        }
+        $variant->decrement('stock_quantity', $item->quantity);
+    }
+    $order->update(['order_status' => 'delivering']);
 });
 ```
-Kết hợp **unique index** `(rental_unit_id, busy_from)` và một Redis lock theo `variant_id` để giảm tranh chấp. Nếu kiểm tra lại thất bại → rollback, báo lỗi 409 kèm danh sách món đã mất.
 
-**BR-05 — Soft hold.** Khi thêm vào giỏ, tạo booking `held` với `expires_at = now + 15 phút`. Job `ReleaseExpiredHolds` chạy mỗi phút để nhả. Khách checkout thì gia hạn hold lên 30 phút.
+Kết hợp ràng buộc CSDL `CHECK (stock_quantity >= 0)` làm chốt chặn cuối. Nếu kiểm tra lại thất bại → rollback, trả HTTP 409 kèm danh sách SKU đã hết.
 
-**BR-06 — Gán cá thể trễ (late binding).** Lúc đặt đơn chỉ cần **giữ số lượng** ở cấp biến thể (chọn bất kỳ cá thể rảnh nào). Cá thể **cụ thể** chỉ chốt khi Staff soạn đồ (`preparing`), ưu tiên cá thể có `rental_count` thấp nhất để mòn đều. Cách này giảm rất nhiều xung đột so với gán cứng từ đầu.
+**BR-05 — Giới hạn thời gian thuê.** `rent_start_date >= hôm nay`; `rent_end_date >= rent_start_date`; số ngày thuê tối thiểu 1, tối đa 30 (vượt phải liên hệ shop). Không cho đặt trước quá 180 ngày.
 
-**BR-07 — Giới hạn đặt trước.** Chỉ cho đặt trong `[hôm nay + min_lead_days, hôm nay + max_advance_days]` (mặc định 0 và 180 ngày). Thời gian thuê tối thiểu 1 ngày, tối đa 30 ngày (vượt phải liên hệ shop).
+**BR-06 — Cảnh báo tồn thấp.** Khi `stock_quantity <= 2`, giao diện khách hiển thị "Chỉ còn N bộ"; trang admin đưa biến thể đó vào báo cáo **Sắp hết hàng** để lập phiếu nhập bổ sung.
 
 ### 5.2. Giá thuê & tiền cọc
 
-**BR-10 — Công thức tính giá một dòng:**
+**BR-10 — Số ngày thuê.** Tính **bao gồm cả ngày đầu và ngày cuối**:
 ```
-số_ngày        = ceil(return_date − pickup_date) hoặc 1 nếu cùng ngày
-tiền_thuê_dòng = giá_gói_phù_hợp + (số_ngày_vượt_gói × giá_ngày_thêm)
-tiền_cọc_dòng  = deposit_amount của biến thể   (không nhân theo số ngày)
+rental_days = DATEDIFF(rent_end_date, rent_start_date) + 1      (tối thiểu 1)
+```
+Ví dụ thuê 01/10 → 03/10 là **3 ngày**.
+
+> **Bẫy khi code.** Carbon 3 (đi kèm Laravel 12) trả về **float** từ `diffInDays()`, nên phải ép kiểu:
+> `$days = (int) $start->diffInDays($end) + 1;`
+> Không ép thì `rental_days` mang giá trị `3.0`; cột INT vẫn lưu đúng nên lỗi không lộ ra ngay, nhưng mọi so sánh `===` với số nguyên đều sai.
+
+**BR-11 — Tiền của một dòng đơn (`order_items`):**
+```
+price_per_day      = products.rental_price_per_day   (snapshot lúc đặt)
+deposit_per_item   = products.original_value × products.deposit_rate_percent / 100
+total_item_rental  = price_per_day    × rental_days × quantity
+total_item_deposit = deposit_per_item × quantity          ← KHÔNG nhân số ngày
 ```
 
-**BR-11 — Gói thuê.** Mỗi biến thể có thể có nhiều `pricing_tier`: ví dụ gói 1 ngày 300k, gói 3 ngày 700k, ngày thứ 4 trở đi +150k/ngày. Hệ thống luôn chọn tổ hợp **rẻ nhất cho khách**.
+> Tiền cọc là khoản **giữ tạm theo món đồ**, không phải phí sử dụng, nên không nhân theo số ngày. Đây là chỗ hội đồng hay hỏi.
 
-**BR-12 — Tổng đơn:**
+**BR-12 — Tổng đơn (`orders`):**
 ```
-tổng_thuê   = Σ tiền_thuê_dòng
-tổng_cọc    = Σ tiền_cọc_dòng
-giảm_giá    = theo promotion (chỉ áp lên tổng_thuê, KHÔNG áp lên cọc)
-phí_ship    = theo bảng phí × 2 chiều (nếu chọn giao tận nơi)
-phải_trả    = tổng_thuê − giảm_giá + phí_ship + tổng_cọc
+total_rental_fee  = Σ total_item_rental
+total_deposit_fee = Σ total_item_deposit
+discount_amount   = coupons.discount_amount nếu hợp lệ, ngược lại 0
+shipping_fee      = 0 nếu delivery_type = 'store_pickup'
+                    ngược lại lấy theo system_configs.shipping_fee_default
+grand_total       = total_rental_fee + total_deposit_fee + shipping_fee − discount_amount
 ```
 
-**BR-13 — Hai phương án thu tiền:**
-- **Cọc giữ chỗ (mặc định):** trả online `tổng_cọc` + 30% `tổng_thuê`; phần còn lại thu khi nhận đồ.
-- **Trả đủ:** trả online toàn bộ `phải_trả`, được giảm thêm 2% (khuyến khích, cấu hình được).
+**BR-13 — Giảm giá không áp lên cọc.** `discount_amount` chỉ trừ vào phần tiền thuê. Điều kiện `min_order_value` cũng so với `total_rental_fee`, **không** so với `grand_total` — nếu không, khách thuê một món cọc cao sẽ dễ dàng đạt ngưỡng khuyến mãi một cách vô lý.
 
-**BR-14 — Cọc không sinh doanh thu.** Tiền cọc hạch toán vào tài khoản "phải trả người thuê", **không tính vào doanh thu** trong báo cáo. Chỉ phần cọc bị trừ do phí phát sinh mới ghi nhận doanh thu.
+**BR-14 — Snapshot giá.** `order_items` lưu `price_per_day` và `deposit_per_item` tại thời điểm đặt. Shop đổi giá sau này thì đơn cũ không bị lệch.
 
-### 5.3. Huỷ đơn & hoàn tiền
+**BR-15 — Cọc không phải doanh thu.** Khi tính báo cáo doanh thu, chỉ lấy `total_rental_fee − discount_amount` cộng `penalty_fee`. `total_deposit_fee` là khoản giữ hộ, phải loại trừ.
 
-**BR-20 — Chính sách phí huỷ (theo thời điểm huỷ trước ngày nhận):**
+**BR-16 — Kiểu dữ liệu tiền.** Mọi cột tiền dùng `DECIMAL(12,2)`. **Không dùng `FLOAT`/`DOUBLE`** — sai số làm tròn sẽ khiến quyết toán cọc lệch vài đồng và không đối chiếu được.
 
-| Huỷ trước ngày nhận | Hoàn tiền thuê đã trả | Hoàn cọc |
+### 5.3. Thanh toán
+
+**BR-17 — Hai phương thức.**
+
+| `payment_method` | Thời điểm thu | Ghi nhận |
 |---|---|---|
-| ≥ 7 ngày | 100% | 100% |
-| 3–6 ngày | 70% | 100% |
-| 1–2 ngày | 50% | 100% |
-| < 24 giờ hoặc không đến nhận | 0% | 100% |
+| `cash` | Khi khách nhận đồ (ship COD) hoặc tại quầy | Admin bấm "Ghi nhận thu tiền" → `payments` (`gateway = cash`, `status = success`) |
+| `vnpay` | Ngay khi đặt đơn | IPN từ VNPay → `payments` (`gateway = vnpay`, `status = success`) |
 
-**BR-21.** Shop huỷ đơn (hết đồ, đồ hỏng đột xuất) → hoàn **100%** mọi khoản + tặng voucher xin lỗi.
-**BR-22.** Hoàn tiền online về đúng kênh đã thanh toán, trong 3–7 ngày làm việc; hoàn tiền mặt thì Staff ghi nhận phiếu chi có xác nhận.
-**BR-23.** Mọi khoản hoàn > `refund_auto_limit` (mặc định 2.000.000đ) phải qua Manager duyệt.
+**BR-18 — Chỉ IPN mới được đổi trạng thái đơn.** Return URL (`vnp_ReturnUrl`) chỉ dùng để điều hướng giao diện. Nguồn sự thật là **IPN**: phải verify `vnp_SecureHash`, và xử lý **idempotent** theo `transaction_id` vì cổng có thể gọi lại nhiều lần.
 
-### 5.4. Phí phát sinh
+**BR-19 — Đơn `vnpay` chưa thanh toán.** Giữ `pending` + `unpaid` tối đa 30 phút, sau đó job `ExpireUnpaidOrders` chuyển `cancelled` và trả lại lượt dùng coupon.
 
-**BR-30 — Phí trễ hạn:** `phí_trễ = số_ngày_trễ × late_fee_rate × tiền_thuê_ngày_của_dòng`, mặc định `late_fee_rate = 1.5`. Có trần: không vượt quá `tiền_cọc_dòng × 2`. Ân hạn 3 giờ sau giờ hẹn trả.
+### 5.4. Khuyến mãi (`coupons`)
 
-**BR-31 — Phí tình trạng khi trả:**
+**BR-20 — Điều kiện áp mã.** Mã hợp lệ khi thoả **đồng thời** 4 điều kiện:
+```
+1. coupons.status = 'active'
+2. now() BETWEEN start_date AND end_date
+3. used_count < usage_limit
+4. total_rental_fee >= min_order_value
+```
+Thoả hết → `discount_amount = coupons.discount_amount` và `used_count += 1`.
 
-| Tình trạng | Phí | Xử lý cá thể |
+**BR-21 — Mỗi đơn một mã.** `orders.coupon_id` là khoá ngoại đơn trị → không cộng dồn nhiều mã trên cùng một đơn.
+
+**BR-22 — Huỷ đơn thì trả lại lượt.** Đơn chuyển `cancelled` mà có `coupon_id` → `used_count -= 1` (không để âm).
+
+**BR-23 — Tăng lượt an toàn.** Cập nhật `used_count` bằng câu lệnh nguyên tử trong transaction, tránh hai khách cùng dùng lượt cuối:
+```sql
+UPDATE coupons SET used_count = used_count + 1
+WHERE id = :id AND used_count < usage_limit;
+-- affectedRows = 0  →  mã vừa hết lượt, huỷ transaction
+```
+
+### 5.5. Trả đồ, phí phạt & hoàn cọc
+
+**BR-30 — Phí trễ hạn:**
+```
+số_ngày_trễ = max(0, DATEDIFF(actual_return_date, rent_end_date))
+phí_trễ     = số_ngày_trễ × late_fee_rate × Σ(price_per_day × quantity)
+```
+`late_fee_rate` mặc định `1.5`, cấu hình trong `system_configs`. Có **trần**: phí trễ không vượt quá `total_deposit_fee`.
+
+**BR-31 — Phí theo tình trạng đồ (gợi ý, admin chốt con số cuối):**
+
+| Tình trạng khi nhận lại | Phí gợi ý | Xử lý kho |
 |---|---|---|
-| Nguyên vẹn | 0 | → `cleaning` |
-| Bẩn nặng (dính màu, mùi, vết khó tẩy) | phí giặt đặc biệt (cấu hình theo danh mục) | → `cleaning` |
-| Hư hỏng nhẹ (bung chỉ, rách nhỏ, mất hạt) | 10–30% giá trị đồ | → `repairing` |
-| Hư hỏng nặng (không sửa được) | 100% giá trị đồ | → `retired` |
-| Mất | 100% giá trị đồ + 20% phí cơ hội | → `lost` |
+| Nguyên vẹn | 0 | Cộng lại `stock_quantity` |
+| Bẩn nặng, cần giặt đặc biệt | Theo cấu hình `special_cleaning_fee` | Cộng lại sau khi giặt |
+| Hư hỏng nhẹ (bung chỉ, rách nhỏ, mất hạt) | 10–30% `products.original_value` | Cộng lại sau khi sửa |
+| Hư hỏng nặng, không sửa được | 100% `original_value` | **Không** cộng lại → phiếu `export` |
+| Mất đồ | 100% `original_value` | **Không** cộng lại → phiếu `export` |
 
-**BR-32 — Quyết toán cọc:**
+Tổng các khoản trên cộng với phí trễ ghi vào **một cột duy nhất** `rental_returns.penalty_fee`; diễn giải chi tiết ghi trong `penalty_reason` (ví dụ: *"Trễ 2 ngày: 900.000đ; đứt cúc áo: 150.000đ"*).
+
+**BR-32 — Công thức quyết toán:**
 ```
-tổng_phí_phát_sinh = phí_trễ + phí_tình_trạng + phí_khác
-nếu tổng_phí ≤ tổng_cọc  → hoàn khách (tổng_cọc − tổng_phí)
-nếu tổng_phí >  tổng_cọc → khách nợ thêm (tổng_phí − tổng_cọc), tạo công nợ
+deposit_refund_amount = max(0, total_deposit_fee − penalty_fee)
+
+nếu penalty_fee <= total_deposit_fee → hoàn khách phần chênh
+nếu penalty_fee >  total_deposit_fee → hoàn 0đ, khách nợ thêm
+                                       (penalty_fee − total_deposit_fee)
 ```
+Ghi số tiền còn nợ vào `return_note` và thu bằng một bản ghi `payments` loại `payment`.
 
-**BR-33 — Biên độ quyền hạn.** Staff tự quyết phí ≤ 500.000đ và chỉ được giảm tối đa 20% so với mức hệ thống gợi ý. Ngoài biên độ → chuyển Manager.
+**BR-33 — Đồ hỏng phải có chứng từ.** Không bao giờ sửa trực tiếp `stock_quantity` để "xoá" đồ hỏng. Phải lập `stock_receipts` loại `export`, lý do rõ ràng, tham chiếu đơn thuê. Nhờ vậy chênh lệch kho luôn giải thích được khi kiểm kê.
 
-**BR-34 — Minh chứng bắt buộc.** Mọi phí ≠ 0 phải có ≥ 1 ảnh đính kèm trong biên bản kiểm tra. Đây là căn cứ khi khách khiếu nại.
+**BR-34 — Ghi chú kiểm tra là bắt buộc khi có phạt.** `penalty_fee > 0` thì `penalty_reason` không được rỗng. Đây là căn cứ khi khách khiếu nại.
 
-### 5.5. Gia hạn
+**BR-35 — Một đơn một biên bản.** `rental_returns.order_id` là **UNIQUE** — mỗi đơn chỉ lập một biên bản trả đồ. Trả thiếu thì giữ đơn ở `returning` cho tới khi chốt được toàn bộ, rồi mới lập biên bản.
 
-**BR-40.** Khách gửi yêu cầu gia hạn trước hạn trả ít nhất 12 giờ.
-**BR-41.** Hệ thống tự duyệt nếu cá thể đó **không có booking kế tiếp** trong khoảng gia hạn (+ buffer); ngược lại từ chối và gợi ý trả đúng hạn.
-**BR-42.** Tiền gia hạn tính theo giá ngày thêm, thu ngay khi duyệt. Gia hạn không làm mất phí trễ đã phát sinh trước đó.
+### 5.6. Huỷ đơn & hoàn tiền
 
-### 5.6. Khuyến mãi
+**BR-40 — Quyền huỷ.** Khách chỉ huỷ được khi đơn còn `pending`. Từ `confirmed` trở đi phải liên hệ shop; admin là người thao tác huỷ.
 
-**BR-50.** Mã giảm giá có: loại (`percent`/`fixed`), giá trị, giảm tối đa, đơn tối thiểu, khoảng hiệu lực, giới hạn tổng lượt, giới hạn lượt/khách, phạm vi (toàn shop / danh mục / sản phẩm).
-**BR-51.** Không cộng dồn nhiều mã trên một đơn (trừ mã freeship, cho phép cộng 1 mã freeship + 1 mã giảm giá).
-**BR-52.** Huỷ đơn → trả lại lượt dùng mã cho khách.
+**BR-41 — Chính sách hoàn tiền khi huỷ:**
 
-### 5.7. Đánh giá & dữ liệu
+| Thời điểm huỷ | Hoàn tiền thuê đã thu | Hoàn cọc đã thu |
+|---|---|---|
+| Đơn `pending` / `confirmed`, trước ngày nhận ≥ 3 ngày | 100% | 100% |
+| Đơn `confirmed`, trước ngày nhận 1–2 ngày | 50% | 100% |
+| Đơn `delivering` mà khách từ chối nhận | 0% | 100% |
+| Shop huỷ (hết đồ, đồ hỏng đột xuất) | 100% | 100% |
 
-**BR-60.** Chỉ khách có đơn `completed` chứa sản phẩm đó mới được đánh giá, mỗi đơn/sản phẩm 1 lần, trong 30 ngày sau khi hoàn tất.
-**BR-61.** Đánh giá qua kiểm duyệt trước khi hiển thị (chống ảnh/nội dung không phù hợp).
-**BR-62 — Audit log.** Mọi thao tác đổi trạng thái đơn, áp/miễn phí, hoàn tiền, sửa giá đều ghi log: ai, lúc nào, giá trị cũ → mới, lý do.
+**BR-42 — Kênh hoàn tiền.** Hoàn về đúng kênh đã thu: `vnpay` hoàn qua cổng (3–7 ngày làm việc), `cash` thì admin chi tiền mặt và ghi số phiếu chi vào `payments.transaction_id`.
+
+### 5.7. Đánh giá & nội dung
+
+**BR-50 — Điều kiện đánh giá.** Chỉ khách có đơn `completed` chứa sản phẩm đó mới được đánh giá; mỗi cặp (`user_id`, `product_id`) chỉ một lần; `rating` là số nguyên 1–5 (ràng buộc `CHECK`).
+
+**BR-51 — Kiểm duyệt.** Đánh giá hiển thị ngay nhưng admin có quyền ẩn nội dung không phù hợp. Điểm trung bình sao của sản phẩm tính từ các đánh giá đang hiển thị.
+
+**BR-52 — Slug duy nhất.** `categories.slug`, `brands.slug`, `products.slug`, `posts.slug`, `post_categories.slug`, `pages.slug` đều `UNIQUE`. Sinh slug từ tiếng Việt bỏ dấu; trùng thì nối hậu tố số (`vay-da-hoi-2`).
+
+**BR-53 — Danh mục đa cấp không vòng lặp.** `categories.parent_id` và `menus.parent_id` tự tham chiếu; khi sửa phải chặn trường hợp chọn chính nó hoặc con cháu của nó làm cha.
+
+**BR-54 — Xoá mềm / chặn xoá.** Không xoá cứng sản phẩm, biến thể, danh mục đã phát sinh đơn thuê — chuyển `status = 'hidden'`. Đơn cũ vẫn phải tham chiếu được dữ liệu gốc.
+
+**BR-55 — Đếm lượt xem.** `products.view_count` tăng khi API chi tiết sản phẩm được gọi, dùng `increment()` để tránh mất mát khi nhiều người xem cùng lúc.
+
+**BR-56 — Token đặt lại mật khẩu.** `password_resets.token` băm trước khi lưu, hết hạn sau 60 phút tính từ `created_at`, dùng một lần rồi xoá.
 
 ---
 
-## 6. MÔ HÌNH DỮ LIỆU (ERD)
+## 6. MÔ HÌNH DỮ LIỆU — 22 BẢNG
 
 ### 6.1. Sơ đồ quan hệ
 
 ```mermaid
 erDiagram
-    USERS ||--o{ ORDERS : "đặt"
-    USERS ||--o{ ADDRESSES : "có"
+    USERS ||--o{ ORDERS : "đặt thuê"
     USERS ||--o{ REVIEWS : "viết"
+    USERS ||--o{ RENTAL_RETURNS : "nhân viên kiểm tra"
+    USERS ||--o{ STOCK_RECEIPTS : "lập phiếu"
 
-    CATEGORIES ||--o{ PRODUCTS : "chứa"
     CATEGORIES ||--o{ CATEGORIES : "cha-con"
-    PRODUCTS ||--o{ PRODUCT_VARIANTS : "có"
-    PRODUCTS ||--o{ PRODUCT_IMAGES : "có"
-    PRODUCTS ||--o{ REVIEWS : "nhận"
-    PRODUCT_VARIANTS ||--o{ RENTAL_UNITS : "gồm các cá thể"
-    PRODUCT_VARIANTS ||--o{ PRICING_TIERS : "có gói giá"
+    CATEGORIES ||--o{ PRODUCTS : "chứa"
+    BRANDS ||--o{ PRODUCTS : "thuộc về"
 
-    RENTAL_UNITS ||--o{ BOOKINGS : "bị giữ chỗ"
-    RENTAL_UNITS ||--o{ UNIT_LOGS : "nhật ký vòng đời"
-    RENTAL_UNITS ||--o{ MAINTENANCE_TASKS : "giặt/sửa"
+    PRODUCTS ||--o{ PRODUCT_IMAGES : "có ảnh"
+    PRODUCTS ||--o{ PRODUCT_VARIANTS : "có biến thể"
+    PRODUCTS ||--o{ REVIEWS : "nhận đánh giá"
 
+    PRODUCT_VARIANTS ||--o{ ORDER_ITEMS : "được thuê"
+    PRODUCT_VARIANTS ||--o{ STOCK_RECEIPT_DETAILS : "nhập xuất"
+
+    COUPONS ||--o{ ORDERS : "áp dụng"
     ORDERS ||--o{ ORDER_ITEMS : "gồm"
-    ORDER_ITEMS ||--o{ BOOKINGS : "sinh ra"
-    ORDERS ||--o{ PAYMENTS : "có"
-    ORDERS ||--o{ REFUNDS : "có"
-    ORDERS ||--o{ ORDER_FEES : "phát sinh"
-    ORDERS ||--o{ ORDER_STATUS_LOGS : "lịch sử"
-    ORDERS ||--o| SHIPMENTS : "giao nhận"
-    ORDERS ||--o{ INSPECTIONS : "biên bản kiểm tra"
-    ORDERS }o--o| PROMOTIONS : "áp dụng"
+    ORDERS ||--o{ PAYMENTS : "giao dịch"
+    ORDERS ||--|| RENTAL_RETURNS : "biên bản trả đồ"
 
-    INSPECTIONS ||--o{ INSPECTION_ITEMS : "chi tiết"
-    INSPECTION_ITEMS }o--|| RENTAL_UNITS : "về cá thể"
+    STOCK_RECEIPTS ||--o{ STOCK_RECEIPT_DETAILS : "chi tiết"
+
+    POST_CATEGORIES ||--o{ POSTS : "chứa"
+    MENUS ||--o{ MENUS : "cha-con"
 ```
 
-### 6.2. Đặc tả bảng chính
+Các bảng độc lập (không có khoá ngoại): `password_resets`, `pages`, `banners`, `contacts`, `system_configs`.
 
-#### `users`
-| Cột | Kiểu | Ghi chú |
-|---|---|---|
-| id | bigint PK | |
-| name, email, phone | string | email unique, phone unique |
-| password | string | |
-| id_card_note | string null | ghi chú giấy tờ thế chân (KHÔNG lưu số CCCD) |
-| measurements | json null | số đo: cao, nặng, vòng 1/2/3, dài tay... |
-| status | enum | active / blocked |
-| blacklist_reason | text null | khách từng làm mất/hư đồ nặng |
+### 6.2. Danh sách 22 bảng
 
-#### `categories`
-`id, parent_id, name, slug, description, clean_buffer_days (int, default 1), sort_order, is_active`
+| # | Bảng | Nhóm | Mục đích |
+|---|---|---|---|
+| 1 | `users` | Tài khoản | Admin + khách hàng, phân quyền bằng cột `role` |
+| 2 | `password_resets` | Tài khoản | Token quên mật khẩu gửi qua email |
+| 3 | `categories` | Catalog | Danh mục trang phục đa cấp |
+| 4 | `brands` | Catalog | Thương hiệu / nhà thiết kế |
+| 5 | `products` | Catalog | Trang phục gốc, giá thuê/ngày, % cọc |
+| 6 | `product_images` | Catalog | Bộ sưu tập ảnh nhiều góc chụp |
+| 7 | `product_variants` | Catalog | Biến thể size × màu, SKU, tồn kho |
+| 8 | `coupons` | Khuyến mãi | Mã giảm số tiền cố định |
+| 9 | `orders` | Đơn thuê | Bảng trung tâm: người thuê, giao nhận, tiền, trạng thái |
+| 10 | `order_items` | Đơn thuê | Từng món kèm ngày thuê, số ngày, cọc |
+| 11 | `rental_returns` | Đơn thuê | Biên bản kiểm tra & trả đồ, phí phạt, hoàn cọc |
+| 12 | `payments` | Đơn thuê | Lịch sử thu tiền và hoàn cọc |
+| 13 | `stock_receipts` | Kho | Phiếu nhập / xuất huỷ |
+| 14 | `stock_receipt_details` | Kho | Chi tiết từng biến thể trong phiếu |
+| 15 | `post_categories` | Nội dung | Chủ đề bài viết |
+| 16 | `posts` | Nội dung | Bài viết / blog tin tức |
+| 17 | `pages` | Nội dung | Trang tĩnh (giới thiệu, chính sách) |
+| 18 | `banners` | Nội dung | Banner & slider quảng cáo |
+| 19 | `menus` | Nội dung | Menu header / footer đa cấp |
+| 20 | `contacts` | Tương tác | Liên hệ & góp ý của khách |
+| 21 | `system_configs` | Hệ thống | Cấu hình website động |
+| 22 | `reviews` | Tương tác | Đánh giá 1–5 sao kèm bình luận |
 
-#### `products`
-| Cột | Kiểu | Ghi chú |
-|---|---|---|
-| id | bigint PK | |
-| category_id | FK | |
-| name, slug, sku | string | slug unique |
-| description | text | |
-| material, care_instruction | text | chất liệu, hướng dẫn bảo quản |
-| occasion | json | ["cưới","tết","biểu diễn"] |
-| size_chart | json null | bảng size riêng của sản phẩm |
-| base_price, base_deposit | decimal(12,2) | giá mặc định, biến thể có thể override |
-| replacement_value | decimal(12,2) | **giá trị đền bù nếu mất** |
-| is_active, is_featured | bool | |
+### 6.3. Đặc tả chi tiết từng bảng
 
-#### `product_variants`
-| Cột | Kiểu | Ghi chú |
-|---|---|---|
-| id | bigint PK | |
-| product_id | FK | |
-| size, color | string | unique (product_id, size, color) |
-| color_hex | string null | để render swatch màu |
-| price_per_day, deposit_amount | decimal(12,2) | |
-| extra_day_price | decimal(12,2) | giá ngày thứ n+1 |
-| barcode | string null | |
+#### Bảng 1: `users` — Tài khoản người dùng & phân quyền
 
-#### `rental_units` ⭐ *bảng quan trọng nhất*
-| Cột | Kiểu | Ghi chú |
-|---|---|---|
-| id | bigint PK | |
-| variant_id | FK | |
-| unit_code | string unique | mã in QR, vd `AD-M-DO-003` |
-| status | enum | available / reserved / rented / cleaning / repairing / retired / lost |
-| condition_grade | enum | new / good / fair / worn |
-| purchase_date, purchase_cost | date, decimal | phục vụ tính ROI từng cá thể |
-| rental_count | int | số lượt đã cho thuê (dùng để mòn đều) |
-| last_cleaned_at | timestamp null | |
-| location | string null | vị trí trên giá kệ |
-| note | text null | |
+Lưu toàn bộ tài khoản gồm quản trị viên và khách hàng thành viên.
 
-#### `bookings` ⭐ *bảng khoá lịch*
-| Cột | Kiểu | Ghi chú |
-|---|---|---|
-| id | bigint PK | |
-| order_item_id | FK null | null khi mới chỉ là hold ở giỏ |
-| variant_id | FK | luôn có (giữ chỗ cấp biến thể) |
-| rental_unit_id | FK null | null cho tới khi Staff gán cá thể (BR-06) |
-| pickup_date, return_date | date | ngày khách nhận / trả |
-| busy_from, busy_to | date | đã cộng buffer (BR-02) |
-| status | enum | held / confirmed / fulfilled / released / cancelled |
-| expires_at | timestamp null | TTL của soft hold |
-| **Index** | | `(rental_unit_id, busy_from, busy_to)`, `(variant_id, busy_from, busy_to)`, `(status, expires_at)` |
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã định danh duy nhất của người dùng |
+| `role` | ENUM | `admin` / `member`, DEFAULT `member` | Phân quyền: `admin` toàn quyền, `member` là khách hàng |
+| `fullname` | VARCHAR(100) | NOT NULL | Họ và tên đầy đủ |
+| `email` | VARCHAR(100) | NOT NULL, UNIQUE | Dùng để đăng nhập và nhận thông báo đơn thuê |
+| `password` | VARCHAR(255) | NOT NULL | Mật khẩu đã mã hoá Bcrypt |
+| `phone` | VARCHAR(20) | NULL | Số điện thoại liên hệ giao đồ, xác nhận đơn |
+| `address` | VARCHAR(255) | NULL | Địa chỉ mặc định, tự điền khi checkout |
+| `avatar` | VARCHAR(255) | NULL | Đường dẫn ảnh đại diện |
+| `status` | ENUM | `active` / `locked`, DEFAULT `active` | `locked` khi vi phạm, không đăng nhập được |
+| `remember_token` | VARCHAR(100) | NULL | Token "Ghi nhớ đăng nhập" của Laravel |
+| `created_at` | TIMESTAMP | DEFAULT NOW | Ngày giờ tạo tài khoản |
+| `updated_at` | TIMESTAMP | ON UPDATE NOW | Lần cập nhật cuối |
 
-#### `orders`
-| Cột | Kiểu | Ghi chú |
-|---|---|---|
-| id | bigint PK | |
-| code | string unique | `CR20260909-0001` |
-| user_id | FK null | null cho đơn tại quầy của khách vãng lai |
-| channel | enum | online / walk_in |
-| status | enum | xem §4.1 |
-| pickup_method | enum | at_store / delivery |
-| pickup_date, return_date, return_due_at | date/datetime | |
-| receiver_name, receiver_phone, address | string/text | |
-| subtotal_rental, discount, shipping_fee, total_deposit | decimal | |
-| extra_fees_total, grand_total, paid_amount, refunded_amount | decimal | |
-| promotion_id | FK null | |
-| note, internal_note | text null | |
-| confirmed_at, handed_over_at, returned_at, completed_at | timestamp null | |
-| created_by | FK null | staff tạo đơn tại quầy |
+#### Bảng 2: `password_resets` — Quên & đặt lại mật khẩu
 
-#### `order_items`
-`id, order_id, variant_id, product_name_snapshot, variant_snapshot (json), quantity, days, unit_rental_price, unit_deposit, line_rental_total, line_deposit_total`
+Lưu token xác thực tạm thời gửi qua email khi người dùng bấm Quên mật khẩu.
 
-> Luôn **snapshot** tên/giá tại thời điểm đặt. Sau này shop đổi giá thì đơn cũ không bị lệch.
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `email` | VARCHAR(100) | NOT NULL, INDEX | Email của tài khoản cần đổi mật khẩu |
+| `token` | VARCHAR(255) | NOT NULL | Mã xác thực ngẫu nhiên đính kèm link gửi vào email |
+| `created_at` | TIMESTAMP | DEFAULT NOW | Thời điểm gửi yêu cầu, dùng để kiểm tra hết hạn (BR-56) |
 
-#### `payments`
-`id, order_id, code, type (deposit|rental|extra_fee|extension), method (vnpay|momo|cash|bank_transfer), amount, status, gateway_txn_id, gateway_response (json), paid_at, created_by`
+#### Bảng 3: `categories` — Danh mục trang phục
 
-#### `refunds`
-`id, order_id, payment_id, amount, reason, status (pending|approved|processing|done|rejected), approved_by, approved_at, processed_at, note`
+Phân loại quần áo (Váy dạ hội, Áo dài, Vest & Suit, Trang phục Cosplay…).
 
-#### `order_fees`
-`id, order_id, rental_unit_id (null), type (late|dirty|damage_minor|damage_major|lost|other), suggested_amount, final_amount, reason, evidence (json ảnh), created_by, waived_by (null), waive_reason`
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã định danh danh mục |
+| `name` | VARCHAR(100) | NOT NULL | Tên danh mục (VD: *Váy Dạ Hội & Dự Tiệc*) |
+| `slug` | VARCHAR(120) | NOT NULL, UNIQUE | URL thân thiện SEO (VD: `vay-da-hoi-du-tiec`) |
+| `parent_id` | INT | FK → `categories.id`, NULL | Danh mục cha; NULL nếu là danh mục gốc |
+| `description` | TEXT | NULL | Mô tả ngắn về danh mục |
+| `image` | VARCHAR(255) | NULL | Ảnh đại diện hiển thị trên giao diện |
+| `status` | ENUM | `active` / `hidden` | `active` hiển thị lên web, `hidden` ẩn đi |
 
-#### `inspections` / `inspection_items`
-- `inspections`: `id, order_id, type (handover|return), inspector_id, inspected_at, summary, customer_signature (path null)`
-- `inspection_items`: `id, inspection_id, rental_unit_id, condition (intact|dirty|damage_minor|damage_major|lost), photos (json), note`
+#### Bảng 4: `brands` — Thương hiệu / nhà thiết kế
 
-> Có cả biên bản **lúc giao** lẫn **lúc nhận** — so 2 biên bản là căn cứ khách quan khi tranh chấp. Điểm cộng lớn cho đồ án.
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã định danh thương hiệu |
+| `name` | VARCHAR(100) | NOT NULL | Tên thương hiệu (VD: Gucci, Chanel, Tiệm May ABC) |
+| `slug` | VARCHAR(120) | NOT NULL, UNIQUE | URL thân thiện SEO |
+| `logo` | VARCHAR(255) | NULL | Đường dẫn hình logo |
+| `description` | TEXT | NULL | Mô tả về thương hiệu |
+| `status` | ENUM | `active` / `hidden` | Trạng thái hiển thị |
 
-#### `maintenance_tasks`
-`id, rental_unit_id, type (cleaning|repair|alteration), status (todo|doing|done|failed), assigned_to, cost, started_at, finished_at, note`
+#### Bảng 5: `products` — Sản phẩm trang phục gốc
 
-#### `shipments`
-`id, order_id, direction (outbound|inbound), carrier, tracking_code, fee, status (pending|picked|in_transit|delivered|failed|returned), shipped_at, delivered_at`
+Lưu thông tin chung của trang phục (chưa phân chia size / màu).
 
-#### Bảng phụ trợ
-- `product_images`: `id, product_id, variant_id (null), path, alt, sort_order, is_primary`
-- `pricing_tiers`: `id, variant_id, days, price, label` (gói 1/3/7 ngày)
-- `promotions`: `id, code, type, value, max_discount, min_order, scope, scope_ids (json), starts_at, ends_at, usage_limit, used_count, per_user_limit, is_active`
-- `reviews`: `id, product_id, order_id, user_id, rating, content, images (json), status (pending|approved|rejected), replied_content, replied_at`
-- `notifications`: chuẩn Laravel notifications table
-- `order_status_logs`: `id, order_id, from_status, to_status, actor_id, reason, created_at`
-- `unit_logs`: `id, rental_unit_id, from_status, to_status, order_id (null), actor_id, note, created_at`
-- `settings`: `key, value (json)` — chứa `late_fee_rate`, `hold_ttl_minutes`, `refund_auto_limit`, `staff_fee_limit`, `max_advance_days`...
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã sản phẩm duy nhất |
+| `category_id` | INT | FK → `categories.id` | Thuộc danh mục nào |
+| `brand_id` | INT | FK → `brands.id`, NULL | Thuộc thương hiệu nào |
+| `name` | VARCHAR(200) | NOT NULL | Tên trang phục (VD: *Váy Dạ Hội Đính Đá Cúp Ngực*) |
+| `slug` | VARCHAR(220) | NOT NULL, UNIQUE | URL chi tiết sản phẩm trên Next.js |
+| `thumbnail` | VARCHAR(255) | NOT NULL | Ảnh đại diện chính |
+| `short_description` | VARCHAR(500) | NULL | Mô tả tóm tắt hiển thị ở thẻ card |
+| `description` | LONGTEXT | NULL | Bài viết chi tiết, bảng thông số size, lưu ý sử dụng |
+| `rental_price_per_day` | DECIMAL(12,2) | NOT NULL | Đơn giá thuê mỗi ngày (VD: 150.000đ/ngày) |
+| `deposit_rate_percent` | INT | DEFAULT 70 | Tỷ lệ % tiền cọc so với giá trị sản phẩm |
+| `original_value` | DECIMAL(12,2) | NOT NULL | Giá trị gốc khi mua mới — cơ sở tính cọc và bồi thường |
+| `is_featured` | TINYINT(1) | DEFAULT 0 | 1: đưa lên mục Nổi Bật ở trang chủ |
+| `view_count` | INT | DEFAULT 0 | Số lượt xem trang chi tiết (BR-55) |
+| `status` | ENUM | `active` / `hidden` | Trạng thái kinh doanh |
 
-### 6.3. Ghi chú thiết kế đáng lưu ý
+#### Bảng 6: `product_images` — Bộ sưu tập ảnh sản phẩm
 
-1. **Không có cột `stock_quantity`.** Tồn kho = số cá thể `available` trừ đi số bị chồng lịch. Đây là điểm phân biệt hệ thống cho thuê với hệ thống bán hàng.
-2. **Denormalize `busy_from`/`busy_to`** vào `bookings` thay vì tính runtime — cho phép đánh index và query availability cực nhanh.
-3. **Snapshot** tên/giá vào `order_items`, `order_fees` để đơn cũ bất biến.
-4. Dùng **soft delete** cho `products`, `product_variants`, `rental_units` (đơn cũ vẫn phải tham chiếu được).
-5. Tiền để `decimal(12,2)` hoặc `bigint` đơn vị đồng — **không dùng float**.
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã ảnh |
+| `product_id` | BIGINT | FK → `products.id` | Ảnh thuộc sản phẩm nào |
+| `image_url` | VARCHAR(255) | NOT NULL | Đường dẫn file ảnh |
+| `sort_order` | INT | DEFAULT 0 | Thứ tự ưu tiên hiển thị trên slide gallery |
+
+#### Bảng 7: `product_variants` — Biến thể size / màu & tồn kho thực tế
+
+Mỗi sản phẩm có thể có nhiều size và màu khác nhau, mỗi tổ hợp có mã SKU riêng.
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã biến thể duy nhất |
+| `product_id` | BIGINT | FK → `products.id` | Thuộc sản phẩm nào |
+| `sku` | VARCHAR(50) | NOT NULL, UNIQUE | Mã quản lý kho (VD: `VAY-DH-DO-S`) |
+| `size` | VARCHAR(20) | NOT NULL | Kích cỡ (S, M, L, XL, FreeSize) |
+| `color` | VARCHAR(50) | NOT NULL | Màu sắc (Đỏ Ruby, Trắng Kem, Đen Tuyền) |
+| `condition_note` | VARCHAR(100) | DEFAULT `99% New` | Tình trạng đồ (VD: *Mới 100%*, *98% New – không tì vết*) |
+| `stock_quantity` | INT | DEFAULT 0, CHECK ≥ 0 | Số lượng thực tế còn trong kho có thể cho thuê |
+
+> Nên thêm **UNIQUE `(product_id, size, color)`** để không tạo trùng biến thể.
+
+#### Bảng 8: `coupons` — Mã giảm giá trực tiếp
+
+Lưu mã khuyến mãi trừ thẳng một số tiền vào đơn thuê, có điều kiện đơn tối thiểu và hạn dùng.
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã khuyến mãi |
+| `code` | VARCHAR(50) | NOT NULL, UNIQUE | Mã voucher khách nhập (VD: `THUEHE50K`) |
+| `description` | VARCHAR(255) | NULL | Mô tả chương trình khuyến mãi |
+| `discount_amount` | DECIMAL(12,2) | NOT NULL | Số tiền giảm trực tiếp vào đơn (VD: 50.000đ) |
+| `min_order_value` | DECIMAL(12,2) | DEFAULT 0 | Tổng tiền **thuê** tối thiểu để được áp mã |
+| `usage_limit` | INT | DEFAULT 100 | Tổng số lần mã được phép dùng toàn hệ thống |
+| `used_count` | INT | DEFAULT 0 | Số lần mã đã dùng thực tế |
+| `start_date` | DATETIME | NOT NULL | Thời gian bắt đầu có hiệu lực |
+| `end_date` | DATETIME | NOT NULL | Thời gian hết hạn |
+| `status` | ENUM | `active` / `inactive` | Bật / tắt voucher |
+
+#### Bảng 9: `orders` — Đơn đặt thuê trang phục
+
+Bảng trung tâm lưu thông tin người thuê, giao nhận, tiền cọc và trạng thái đơn.
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | ID đơn hàng trong DB |
+| `order_code` | VARCHAR(30) | NOT NULL, UNIQUE | Mã đơn hiển thị cho khách và admin (VD: `ORD2026-001`) |
+| `user_id` | BIGINT | FK → `users.id`, **NOT NULL** | Người đặt thuê — bắt buộc đã đăng nhập |
+| `coupon_id` | INT | FK → `coupons.id`, NULL | Mã coupon áp dụng (nếu có) |
+| `customer_name` | VARCHAR(100) | NOT NULL | Tên người nhận đồ |
+| `customer_phone` | VARCHAR(20) | NOT NULL | Số điện thoại người nhận |
+| `customer_email` | VARCHAR(100) | NULL | Email nhận biên lai và xác nhận đơn |
+| `delivery_type` | ENUM | `store_pickup` / `delivery` | Lấy tại shop hay ship tận nơi |
+| `shipping_address` | VARCHAR(255) | NULL | Địa chỉ giao hàng; NULL nếu `store_pickup` |
+| `customer_note` | TEXT | NULL | Ghi chú của khách (VD: *Giao trước 14h*) |
+| `total_rental_fee` | DECIMAL(12,2) | NOT NULL | Tổng tiền thuê của tất cả sản phẩm |
+| `total_deposit_fee` | DECIMAL(12,2) | NOT NULL | Tổng tiền cọc đảm bảo |
+| `discount_amount` | DECIMAL(12,2) | DEFAULT 0 | Số tiền được giảm từ coupon |
+| `shipping_fee` | DECIMAL(12,2) | DEFAULT 0 | Phí vận chuyển (0 nếu lấy tại shop) |
+| `grand_total` | DECIMAL(12,2) | NOT NULL | Tiền thuê + cọc + ship − giảm giá |
+| `refunded_deposit` | DECIMAL(12,2) | DEFAULT 0 | Số cọc thực tế đã hoàn sau khi nhận lại đồ |
+| `payment_method` | ENUM | `cash` / `vnpay` | Phương thức thanh toán |
+| `payment_status` | ENUM | `unpaid` / `partially_paid` / `paid` / `refunded` | Trạng thái thanh toán tiền thuê & cọc |
+| `order_status` | ENUM | `pending` / `confirmed` / `delivering` / `renting` / `returning` / `completed` / `cancelled` | Vòng đời đơn — xem §4.1 |
+| `created_at` / `updated_at` | TIMESTAMP | | Thời điểm đặt và cập nhật |
+
+**Index đề nghị:** `(user_id, created_at)`, `(order_status)`, `(payment_status)`, `UNIQUE(order_code)`.
+
+#### Bảng 10: `order_items` — Chi tiết món đồ trong đơn thuê
+
+Lưu từng món được thuê, ngày thuê cụ thể, số ngày và tiền cọc từng món.
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã chi tiết đơn hàng |
+| `order_id` | BIGINT | FK → `orders.id` | Thuộc đơn hàng nào |
+| `product_variant_id` | BIGINT | FK → `product_variants.id` | Món đồ cụ thể (size / màu nào) |
+| `quantity` | INT | NOT NULL | Số lượng thuê |
+| `rent_start_date` | DATE | NOT NULL | Ngày bắt đầu tính thuê (VD: 2026-10-01) |
+| `rent_end_date` | DATE | NOT NULL | Ngày phải trả đồ (VD: 2026-10-03) |
+| `rental_days` | INT | NOT NULL | Số ngày thuê thực tế (VD: 3 ngày) — BR-10 |
+| `price_per_day` | DECIMAL(12,2) | NOT NULL | Đơn giá thuê/ngày tại thời điểm đặt (snapshot) |
+| `deposit_per_item` | DECIMAL(12,2) | NOT NULL | Tiền cọc cho một món |
+| `total_item_rental` | DECIMAL(12,2) | NOT NULL | `price_per_day × rental_days × quantity` |
+| `total_item_deposit` | DECIMAL(12,2) | NOT NULL | `deposit_per_item × quantity` |
+
+#### Bảng 11: `rental_returns` — Biên bản kiểm tra & trả đồ
+
+Ghi nhận khi khách trả đồ, admin kiểm tra độ nguyên vẹn, tính phạt và hoàn cọc.
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã biên bản trả đồ |
+| `order_id` | BIGINT | FK → `orders.id`, UNIQUE | Thuộc đơn hàng nào — mỗi đơn một biên bản (BR-35) |
+| `staff_id` | BIGINT | FK → `users.id` | Người (admin) thực hiện kiểm tra và nhận đồ |
+| `actual_return_date` | DATE | NOT NULL | Ngày khách thực tế trả đồ về shop |
+| `penalty_fee` | DECIMAL(12,2) | DEFAULT 0 | Tiền phạt (trễ hạn, rách vải, ố màu…) |
+| `penalty_reason` | VARCHAR(255) | NULL | Lý do phạt (VD: *Trễ 2 ngày, đứt cúc áo*) |
+| `deposit_refund_amount` | DECIMAL(12,2) | NOT NULL | Cọc thực hoàn = cọc gốc − tiền phạt (BR-32) |
+| `return_note` | TEXT | NULL | Ghi chú thẩm định của nhân viên |
+
+#### Bảng 12: `payments` — Lịch sử giao dịch tiền mặt & online
+
+Theo dõi dòng tiền vào (thanh toán tiền thuê / cọc) và dòng tiền ra (hoàn trả cọc).
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã giao dịch |
+| `order_id` | BIGINT | FK → `orders.id` | Thuộc đơn hàng nào |
+| `transaction_id` | VARCHAR(100) | NULL | Mã giao dịch VNPay hoặc số phiếu thu / chi |
+| `payment_gateway` | ENUM | `cash` / `vnpay` | Kênh thanh toán |
+| `amount` | DECIMAL(12,2) | NOT NULL | Số tiền giao dịch |
+| `type` | ENUM | `payment` / `deposit_refund` | Thu tiền khách / hoàn cọc lại cho khách |
+| `status` | ENUM | `pending` / `success` / `failed` | Trạng thái giao dịch |
+
+> **Index quan trọng:** `UNIQUE(transaction_id)` khi khác NULL — đây là chốt chặn để xử lý IPN **idempotent** (BR-18).
+
+#### Bảng 13: `stock_receipts` — Phiếu nhập / xuất kho
+
+Quản lý nguồn gốc tăng / giảm tồn kho trang phục (FUNC-ADM-STOCK).
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã phiếu kho |
+| `receipt_code` | VARCHAR(30) | NOT NULL, UNIQUE | Mã phiếu (VD: `PNK-2026-001`, `PXK-2026-001`) |
+| `user_id` | BIGINT | FK → `users.id` | Người tạo phiếu (admin) |
+| `receipt_type` | ENUM | `import` / `export` | Nhập hàng mới / xuất huỷ đồ hỏng |
+| `reason` | VARCHAR(255) | NOT NULL | Lý do nhập – xuất kho |
+| `total_amount` | DECIMAL(12,2) | DEFAULT 0 | Tổng giá trị nhập / xuất của phiếu |
+
+#### Bảng 14: `stock_receipt_details` — Chi tiết phiếu nhập / xuất
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã chi tiết phiếu |
+| `receipt_id` | BIGINT | FK → `stock_receipts.id` | Thuộc phiếu nào |
+| `product_variant_id` | BIGINT | FK → `product_variants.id` | Biến thể sản phẩm cụ thể |
+| `quantity` | INT | NOT NULL | Số lượng nhập (+) hoặc xuất (−) |
+| `unit_price` | DECIMAL(12,2) | DEFAULT 0 | Đơn giá vốn / chi phí mỗi sản phẩm |
+
+#### Bảng 15: `post_categories` — Chủ đề bài viết
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã chủ đề |
+| `name` | VARCHAR(100) | NOT NULL | Tên chủ đề (Kinh nghiệm phối đồ, Cẩm nang chụp ảnh…) |
+| `slug` | VARCHAR(120) | NOT NULL, UNIQUE | URL danh mục bài viết |
+| `status` | ENUM | `active` / `hidden` | Trạng thái hiển thị |
+
+#### Bảng 16: `posts` — Bài viết & blog tin tức
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã bài viết |
+| `category_id` | INT | FK → `post_categories.id` | Thuộc chủ đề nào |
+| `title` | VARCHAR(255) | NOT NULL | Tiêu đề bài viết |
+| `slug` | VARCHAR(255) | NOT NULL, UNIQUE | URL chi tiết bài viết trên Next.js |
+| `thumbnail` | VARCHAR(255) | NULL | Ảnh đại diện bài viết |
+| `summary` | VARCHAR(500) | NULL | Đoạn tóm tắt mở đầu |
+| `content` | LONGTEXT | NOT NULL | Nội dung chi tiết (HTML / Markdown) |
+| `status` | ENUM | `published` / `draft` / `hidden` | Đã đăng / bản nháp / ẩn |
+
+#### Bảng 17: `pages` — Trang tĩnh nội dung
+
+Quản lý các trang thông tin độc lập: Giới thiệu, Chính sách thuê đồ, Bảng giá cọc.
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã trang tĩnh |
+| `title` | VARCHAR(255) | NOT NULL | Tên trang (VD: *Chính Sách Thuê & Hoàn Cọc*) |
+| `slug` | VARCHAR(255) | NOT NULL, UNIQUE | URL trang (VD: `chinh-sach-thue-hoan-coc`) |
+| `content` | LONGTEXT | NOT NULL | Nội dung chi tiết của trang |
+| `status` | ENUM | `active` / `hidden` | Trạng thái hiển thị |
+
+#### Bảng 18: `banners` — Banner & slider quảng cáo
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã banner |
+| `title` | VARCHAR(100) | NULL | Tiêu đề banner quảng cáo |
+| `image_url` | VARCHAR(255) | NOT NULL | Đường dẫn ảnh banner |
+| `link_url` | VARCHAR(255) | NULL | Link điều hướng khi bấm vào banner |
+| `position` | VARCHAR(50) | DEFAULT `home_main_slider` | Vị trí hiển thị (slider trang chủ, banner chân trang…) |
+| `sort_order` | INT | DEFAULT 0 | Thứ tự xuất hiện |
+| `status` | ENUM | `active` / `hidden` | Trạng thái hiển thị |
+
+#### Bảng 19: `menus` — Thanh điều hướng header / footer
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã menu |
+| `name` | VARCHAR(100) | NOT NULL | Tên hiển thị (Trang chủ, Thuê Áo Dài, Bảng Giá) |
+| `link` | VARCHAR(255) | NOT NULL | Đường dẫn đích khi bấm vào |
+| `parent_id` | INT | FK → `menus.id`, NULL | Menu cha (nếu là dropdown đa cấp) |
+| `sort_order` | INT | DEFAULT 0 | Thứ tự sắp xếp |
+| `position` | ENUM | `header` / `footer` | Vị trí đặt menu |
+| `status` | ENUM | `active` / `hidden` | Trạng thái hiển thị |
+
+#### Bảng 20: `contacts` — Liên hệ & góp ý của khách hàng
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã liên hệ |
+| `fullname` | VARCHAR(100) | NOT NULL | Tên người gửi |
+| `email` | VARCHAR(100) | NOT NULL | Email để admin phản hồi |
+| `phone` | VARCHAR(20) | NULL | Số điện thoại của khách |
+| `title` | VARCHAR(200) | NOT NULL | Tiêu đề thắc mắc |
+| `content` | TEXT | NOT NULL | Nội dung chi tiết lời nhắn |
+| `admin_reply` | TEXT | NULL | Nội dung admin đã phản hồi |
+| `status` | ENUM | `pending` / `replied` | Chờ xử lý / đã phản hồi |
+
+#### Bảng 21: `system_configs` — Cấu hình chung hệ thống
+
+Lưu thông tin động của website để admin sửa qua form, không cần sửa code.
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | INT | PK, AI | Mã cấu hình |
+| `config_key` | VARCHAR(50) | NOT NULL, UNIQUE | Khoá định danh (`site_name`, `site_phone`, `site_address`) |
+| `config_value` | TEXT | NULL | Giá trị tương ứng (VD: `0901234567`, *Tiệm Thuê Đồ Xinh*) |
+| `description` | VARCHAR(255) | NULL | Mô tả ý nghĩa của khoá cấu hình |
+
+#### Bảng 22: `reviews` — Đánh giá & nhận xét sản phẩm
+
+| Cột | Kiểu | Ràng buộc | Giải thích |
+|---|---|---|---|
+| `id` | BIGINT | PK, AI | Mã đánh giá |
+| `product_id` | BIGINT | FK → `products.id` | Đánh giá cho trang phục nào |
+| `user_id` | BIGINT | FK → `users.id` | Người viết đánh giá |
+| `rating` | TINYINT | CHECK 1..5 | Số sao đánh giá |
+| `comment` | TEXT | NULL | Cảm nhận về form dáng, chất vải, độ sạch sẽ |
+| `created_at` | TIMESTAMP | DEFAULT NOW | Thời gian gửi đánh giá |
+
+### 6.4. Ghi chú thiết kế đáng lưu ý
+
+1. **Tồn kho là một con số, không phải lịch bận.** Đây là đánh đổi có chủ đích: đơn giản, đủ cho phạm vi môn học, dễ giải thích. Hệ quả cần nói rõ khi bảo vệ: hệ thống **không** cho phép đặt trước một món đang có người thuê ở tương lai — khách chỉ đặt được khi kho còn hàng ngay lúc đó.
+2. **Trừ kho tại `delivering`, không trừ tại `pending`.** Tránh khoá kho oan bởi những đơn không bao giờ thanh toán (BR-03).
+3. **Snapshot giá vào `order_items`.** Đổi bảng giá không làm sai lệch đơn cũ (BR-14).
+4. **Một cột `penalty_fee` duy nhất**, chi tiết diễn giải nằm ở `penalty_reason`. Đơn giản hơn bảng phí riêng, đủ dùng cho quy mô một shop.
+5. **`orders.refunded_deposit` là số liệu chốt**, còn `rental_returns.deposit_refund_amount` là con số tính ra tại biên bản — hai giá trị phải luôn bằng nhau sau khi hoàn tất; dùng để đối chiếu khi kiểm tra sổ sách.
+6. **Tiền dùng `DECIMAL(12,2)`**, không dùng `FLOAT` (BR-16).
+7. **`status` kiểu ENUM ở khắp nơi** — nên khai báo thành PHP Enum (`App\Enums\OrderStatus`…) để IDE gợi ý và tránh gõ sai chuỗi.
+8. **Khoá ngoại đặt `ON DELETE RESTRICT`** cho những bảng đã phát sinh giao dịch (`orders`, `order_items`, `payments`), `ON DELETE CASCADE` cho dữ liệu phụ thuộc hoàn toàn (`product_images`, `stock_receipt_details`).
+9. **Khoá chính dùng UNSIGNED.** File SQL gốc khai `INT` / `BIGINT` có dấu; migration dùng `increments()` và `id()` của Laravel nên cột là `INT UNSIGNED` / `BIGINT UNSIGNED`. Vẫn giữ nguyên phân biệt INT và BIGINT theo file SQL, chỉ bỏ phần âm — ID không bao giờ âm và đây là mặc định của Laravel. Cột khoá ngoại khai cùng kiểu để FK khớp.
+10. **Model phải khai `$attributes` mặc định.** `DEFAULT` của CSDL chỉ áp lúc `INSERT`. Nếu model không khai, một `new Order()` sẽ có `order_status = NULL` và lời gọi `$order->order_status->canTransitionTo(...)` sẽ lỗi ngay. Mọi model có cột ENUM đều khai `$attributes` khớp `DEFAULT` của CSDL.
+11. **Tổng số bảng thật trong CSDL là 24**: 22 bảng nghiệp vụ + `migrations` (Laravel ghi lịch sử migration) + `personal_access_tokens` (Sanctum cấp Bearer token). Hai bảng cuối là hạ tầng framework, không phải nghiệp vụ. Các bảng `cache`, `jobs`, `sessions` mặc định của Laravel đã được loại bỏ bằng cách chuyển sang driver `file` / `sync`.
 
 ---
 
 ## 7. DANH SÁCH API
 
-Prefix `/api/v1`. Auth: Laravel Sanctum (SPA cookie hoặc Bearer token). Định dạng lỗi thống nhất:
+Prefix `/api/v1`. Xác thực: **Laravel Sanctum** (Bearer token). Nhóm admin đi qua middleware `auth:sanctum` + `role:admin`.
+
+Định dạng phản hồi thống nhất (trait `App\Traits\ApiResponse` + handler trong `bootstrap/app.php`).
+
+Thành công:
 
 ```json
-{ "message": "Món đồ đã được người khác đặt", "errors": { "items": ["variant_id 12 không còn rảnh"] }, "code": "AVAILABILITY_CONFLICT" }
+{
+  "data": { "...": "..." },
+  "message": "Tuỳ chọn"
+}
 ```
 
-### 7.1. Public / Customer
+Thất bại:
+
+```json
+{
+  "message": "Sản phẩm đã hết hàng",
+  "errors": { "items": ["SKU VAY-DH-DO-S chỉ còn 0 bộ"] },
+  "code": "OUT_OF_STOCK"
+}
+```
+
+Mã lỗi (`code`) đang dùng: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `ACCOUNT_LOCKED`, `FORBIDDEN`, `NOT_FOUND`, `OUT_OF_STOCK`, `INVALID_COUPON`, `INVALID_STATUS_TRANSITION`, `HTTP_ERROR`, `SERVER_ERROR`.
+
+### 7.1. Public (không cần đăng nhập)
 
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/categories` | Cây danh mục |
-| GET | `/products` | Danh sách + lọc `?category=&size=&color=&price_min=&price_max=&occasion=&from=&to=&sort=` |
-| GET | `/products/{slug}` | Chi tiết + biến thể + ảnh + đánh giá |
-| GET | `/products/{slug}/availability?from=&to=` | Trả về từng biến thể còn bao nhiêu cá thể rảnh |
-| GET | `/products/{slug}/calendar?month=` | Lịch bận theo ngày (để tô màu date picker) |
-| POST | `/availability/check` | Kiểm tra hàng loạt cho cả giỏ |
-| GET | `/reviews?product_id=` | Đánh giá đã duyệt |
-| POST | `/auth/register` · `/auth/login` · `/auth/logout` · `/auth/forgot-password` | Xác thực |
-| GET/PUT | `/me` | Hồ sơ, số đo |
-| GET/POST/PUT/DELETE | `/me/addresses` | Sổ địa chỉ |
-| GET | `/cart` | Lấy giỏ thuê hiện tại |
-| POST | `/cart/items` | Thêm dòng `{variant_id, quantity, pickup_date, return_date}` → tạo soft hold |
-| PUT | `/cart/items/{id}` · DELETE | Sửa / xoá dòng |
-| POST | `/cart/apply-promotion` | Thử mã giảm giá |
-| POST | `/cart/quote` | Tính tiền chi tiết, không tạo đơn |
-| POST | `/orders` | Checkout → tạo đơn `pending_payment` |
-| GET | `/orders` · `/orders/{code}` | Đơn của tôi |
-| POST | `/orders/{code}/cancel` | Huỷ (áp BR-20) |
-| POST | `/orders/{code}/extend` | Yêu cầu gia hạn |
-| POST | `/orders/{code}/pay` | Khởi tạo phiên thanh toán → trả `payment_url` |
-| POST | `/orders/{code}/reviews` | Đánh giá sau khi hoàn tất |
-| GET | `/notifications` · POST `/notifications/{id}/read` | Thông báo |
+| GET | `/configs` | Toàn bộ `system_configs` để render header/footer |
+| GET | `/menus?position=header\|footer` | Cây menu điều hướng |
+| GET | `/banners?position=` | Banner theo vị trí |
+| GET | `/categories` | Cây danh mục (`status = active`) |
+| GET | `/brands` | Danh sách thương hiệu |
+| GET | `/products` | Danh sách + lọc `?category=&brand=&size=&color=&price_min=&price_max=&featured=&sort=&page=` |
+| GET | `/products/{slug}` | Chi tiết + biến thể + ảnh + điểm trung bình sao (tăng `view_count`) |
+| GET | `/products/{slug}/variants` | Danh sách biến thể kèm `stock_quantity` |
+| GET | `/products/{slug}/reviews` | Đánh giá của sản phẩm |
+| GET | `/posts` · `/posts/{slug}` | Bài viết blog |
+| GET | `/post-categories` | Chủ đề bài viết |
+| GET | `/pages/{slug}` | Trang tĩnh (chính sách, giới thiệu) |
+| POST | `/contacts` | Gửi form liên hệ |
+| POST | `/auth/register` · `/auth/login` | Đăng ký / đăng nhập |
+| POST | `/auth/forgot-password` · `/auth/reset-password` | Quên & đặt lại mật khẩu |
 
-### 7.2. Webhook (không auth, verify chữ ký)
+### 7.2. Customer (`auth:sanctum`)
 
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/payments/vnpay/return` | Trình duyệt quay về (chỉ hiển thị, KHÔNG tin để cập nhật đơn) |
-| POST | `/payments/vnpay/ipn` | **Nguồn sự thật** — verify `vnp_SecureHash`, idempotent theo `gateway_txn_id` |
-| POST | `/payments/momo/ipn` | Tương tự |
+| POST | `/auth/logout` | Đăng xuất, thu hồi token |
+| GET/PUT | `/me` | Xem / sửa hồ sơ (`fullname`, `phone`, `address`, `avatar`) |
+| PUT | `/me/password` | Đổi mật khẩu |
+| POST | `/cart/quote` | Tính tiền thử cho giỏ: gửi mảng `{product_variant_id, quantity, rent_start_date, rent_end_date}` + `coupon_code` → trả breakdown, **không** tạo đơn |
+| POST | `/coupons/validate` | Kiểm tra nhanh một mã `{code, total_rental_fee}` |
+| POST | `/orders` | Checkout → tạo đơn `pending` |
+| GET | `/orders` | Danh sách đơn của tôi (lọc theo `order_status`) |
+| GET | `/orders/{order_code}` | Chi tiết đơn + `order_items` + `payments` + `rental_returns` |
+| POST | `/orders/{order_code}/cancel` | Huỷ đơn khi còn `pending` (BR-40) |
+| POST | `/orders/{order_code}/pay` | Khởi tạo phiên VNPay → trả `payment_url` |
+| POST | `/products/{id}/reviews` | Đánh giá sau khi có đơn `completed` (BR-50) |
 
-> **Nguyên tắc vàng:** chỉ IPN mới được đổi trạng thái đơn. Return URL chỉ dùng để điều hướng UI. Xử lý IPN phải **idempotent** vì cổng có thể gọi lại nhiều lần.
+**Body mẫu `POST /orders`:**
 
-### 7.3. Admin
+```json
+{
+  "customer_name": "Lê Võ Nhật Pin",
+  "customer_phone": "0901234567",
+  "customer_email": "pin@example.com",
+  "delivery_type": "delivery",
+  "shipping_address": "123 Nguyễn Văn Cừ, Quận 5, TP.HCM",
+  "customer_note": "Giao trước 14h",
+  "payment_method": "vnpay",
+  "coupon_code": "THUEHE50K",
+  "items": [
+    {
+      "product_variant_id": 12,
+      "quantity": 1,
+      "rent_start_date": "2026-10-01",
+      "rent_end_date": "2026-10-03"
+    }
+  ]
+}
+```
+
+> Frontend **không gửi tiền lên**. Mọi số tiền do backend tính lại từ `products` và `coupons` — nếu tin giá do client gửi thì khách sửa payload là thuê đồ giá 0đ.
+
+### 7.3. Webhook VNPay (không auth, verify chữ ký)
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/payments/vnpay/return` | Trình duyệt quay về — **chỉ hiển thị kết quả**, không cập nhật đơn |
+| GET | `/payments/vnpay/ipn` | **Nguồn sự thật** — verify `vnp_SecureHash`, idempotent theo `vnp_TransactionNo` (BR-18) |
+
+### 7.4. Admin (`auth:sanctum` + `role:admin`)
 
 **Catalog**
+
 | Method | Endpoint |
 |---|---|
-| GET/POST/PUT/DELETE | `/admin/categories`, `/admin/products`, `/admin/products/{id}/variants` |
-| POST | `/admin/products/{id}/images` (upload nhiều ảnh) |
-| GET/POST/PUT | `/admin/variants/{id}/pricing-tiers` |
+| GET/POST/PUT/DELETE | `/admin/categories`, `/admin/brands` |
+| GET/POST/PUT/DELETE | `/admin/products` |
+| POST/DELETE | `/admin/products/{id}/images` (upload nhiều ảnh, sắp xếp) |
+| GET/POST/PUT/DELETE | `/admin/products/{id}/variants` |
 
-**Kho & cá thể**
+**Kho**
+
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/admin/units` | Lọc theo variant, status, vị trí |
-| POST | `/admin/units/bulk` | Tạo nhiều cá thể một lần cho 1 biến thể |
-| PUT | `/admin/units/{id}/status` | Đổi trạng thái + ghi `unit_logs` |
-| GET | `/admin/units/{code}/qr` | Sinh mã QR |
-| GET | `/admin/units/{id}/schedule?from=&to=` | Lịch bận của một cá thể |
-| GET | `/admin/calendar?from=&to=` | **Lịch tổng** — timeline mọi booking |
+| GET | `/admin/stock/variants` | Tồn kho theo biến thể, lọc `?low_stock=1` |
+| GET/POST | `/admin/stock-receipts` | Danh sách / lập phiếu nhập – xuất (kèm `details`) |
+| GET | `/admin/stock-receipts/{id}` | Chi tiết phiếu |
 
-**Đơn hàng**
+**Đơn thuê**
+
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/admin/orders` | Lọc trạng thái/ngày/khách/kênh |
-| POST | `/admin/orders` | Tạo đơn tại quầy |
-| GET | `/admin/orders/{code}` | Chi tiết đầy đủ |
-| POST | `/admin/orders/{code}/confirm` · `/cancel` | Xác nhận / huỷ |
-| POST | `/admin/orders/{code}/assign-units` | Gán cá thể cụ thể (BR-06) |
-| POST | `/admin/orders/{code}/handover` | Bàn giao — body chứa danh sách `unit_code` quét được |
-| POST | `/admin/orders/{code}/return` | Nhận lại + biên bản kiểm tra |
-| POST | `/admin/orders/{code}/fees` | Thêm phí phát sinh |
-| POST | `/admin/orders/{code}/fees/{id}/waive` | Miễn phí (chỉ Manager) |
-| POST | `/admin/orders/{code}/settle` | Quyết toán cọc → sinh refund/công nợ |
-| POST | `/admin/orders/{code}/payments` | Ghi nhận thu tiền mặt |
-| POST | `/admin/refunds/{id}/approve` · `/reject` | Duyệt hoàn tiền |
+| GET | `/admin/orders` | Lọc theo `order_status`, `payment_status`, ngày, khách |
+| GET | `/admin/orders/{order_code}` | Chi tiết đầy đủ |
+| PUT | `/admin/orders/{order_code}/status` | Chuyển trạng thái theo §4.1 (kèm xử lý tồn kho) |
+| POST | `/admin/orders/{order_code}/payments` | Ghi nhận thu tiền mặt |
+| POST | `/admin/orders/{order_code}/return` | Lập biên bản trả đồ + phí phạt + hoàn cọc (UC-13) |
+| GET | `/admin/orders/overdue` | Danh sách đơn quá hạn trả |
 
-**Vận hành khác**
+**Body mẫu `POST /admin/orders/{order_code}/return`:**
+
+```json
+{
+  "actual_return_date": "2026-10-05",
+  "penalty_fee": 1050000,
+  "penalty_reason": "Trễ 2 ngày: 900.000đ; đứt cúc áo: 150.000đ",
+  "return_note": "Áo dài đỏ ố nhẹ tay áo, đã nhận đủ 2 món",
+  "restock": [
+    { "product_variant_id": 12, "quantity": 1, "usable": true },
+    { "product_variant_id": 34, "quantity": 1, "usable": false }
+  ]
+}
+```
+
+**Khuyến mãi, đánh giá, liên hệ**
+
 | Method | Endpoint |
 |---|---|
-| GET/PUT | `/admin/maintenance-tasks`, `/admin/maintenance-tasks/{id}` |
-| GET/POST/PUT | `/admin/promotions` |
-| GET/PUT | `/admin/reviews` (duyệt / trả lời) |
-| GET | `/admin/reports/revenue?from=&to=&group_by=day|month` |
-| GET | `/admin/reports/utilization` (tỷ lệ khai thác từng cá thể) |
-| GET | `/admin/reports/top-products`, `/admin/reports/idle-stock` |
-| GET/POST | `/admin/users`, `/admin/roles` |
-| GET/PUT | `/admin/settings` |
+| GET/POST/PUT/DELETE | `/admin/coupons` |
+| GET/PUT/DELETE | `/admin/reviews` (ẩn / hiện đánh giá) |
+| GET/PUT | `/admin/contacts`, `/admin/contacts/{id}/reply` |
 
-### 7.4. Job nền (Laravel Scheduler / Queue)
+**Nội dung & hệ thống**
+
+| Method | Endpoint |
+|---|---|
+| GET/POST/PUT/DELETE | `/admin/post-categories`, `/admin/posts` |
+| GET/POST/PUT/DELETE | `/admin/pages`, `/admin/banners`, `/admin/menus` |
+| GET/PUT | `/admin/users`, `/admin/users/{id}/status` (khoá / mở khoá) |
+| GET/PUT | `/admin/configs` |
+
+**Báo cáo**
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/admin/reports/dashboard` | Số liệu tổng quan hôm nay |
+| GET | `/admin/reports/revenue?from=&to=&group_by=day\|month` | Doanh thu = tiền thuê − giảm giá + phí phạt (BR-15) |
+| GET | `/admin/reports/top-products?limit=10` | Sản phẩm được thuê nhiều nhất |
+| GET | `/admin/reports/stock` | Tồn kho, biến thể sắp hết, biến thể tồn ế |
+
+### 7.5. Job nền (Laravel Scheduler)
 
 | Job | Tần suất | Việc |
 |---|---|---|
-| `ReleaseExpiredHolds` | mỗi phút | Nhả booking `held` hết `expires_at` |
-| `ExpireUnpaidOrders` | mỗi 5 phút | Huỷ đơn `pending_payment` quá 30 phút |
-| `MarkOverdueOrders` | mỗi giờ | `in_use` → `overdue`, bắt đầu tính phí trễ |
-| `SendReturnReminder` | 9h hằng ngày | Nhắc khách trước hạn trả 1 ngày |
-| `SendPickupReminder` | 9h hằng ngày | Nhắc khách ngày mai đến nhận đồ |
-| `AutoCompleteInspection` | hằng ngày | Đơn `inspecting` quá 7 ngày không xử lý → cảnh báo Manager |
-| `RebuildAvailabilityCache` | mỗi 10 phút | Làm mới cache lịch cho trang catalog |
+| `ExpireUnpaidOrders` | mỗi 5 phút | Huỷ đơn `vnpay` còn `pending` + `unpaid` quá 30 phút, trả lại lượt coupon |
+| `SendPickupReminder` | 8h hằng ngày | Nhắc khách mai đến nhận đồ (đơn `confirmed`) |
+| `SendReturnReminder` | 8h hằng ngày | Nhắc khách trước hạn trả 1 ngày (đơn `renting`) |
+| `FlagOverdueOrders` | 9h hằng ngày | Đánh dấu và gửi cảnh báo đơn `renting` đã quá `rent_end_date` |
+| `CleanExpiredPasswordResets` | hằng ngày | Xoá token quên mật khẩu quá 60 phút |
 
 ---
 
@@ -794,39 +1167,41 @@ Prefix `/api/v1`. Auth: Laravel Sanctum (SPA cookie hoặc Bearer token). Địn
 ```
 app/
 ├── (shop)/                          # Giao diện khách
-│   ├── page.tsx                     # S01 Trang chủ
-│   ├── danh-muc/[slug]/page.tsx     # S02 Danh sách sản phẩm
-│   ├── san-pham/[slug]/page.tsx     # S03 Chi tiết sản phẩm
-│   ├── gio-thue/page.tsx            # S04 Giỏ thuê
-│   ├── thanh-toan/page.tsx          # S05 Checkout
-│   ├── thanh-toan/ket-qua/page.tsx  # S06 Kết quả thanh toán
-│   ├── tai-khoan/
-│   │   ├── page.tsx                 # S07 Hồ sơ & số đo
-│   │   ├── don-thue/page.tsx        # S08 Danh sách đơn
-│   │   ├── don-thue/[code]/page.tsx # S09 Chi tiết đơn
-│   │   └── dia-chi/page.tsx         # S10 Sổ địa chỉ
-│   ├── dang-nhap | dang-ky          # S11 Auth
-│   └── huong-dan | chinh-sach       # S12 Trang tĩnh
+│   ├── page.tsx                     # S01 Trang chủ (banner, nổi bật, danh mục)
+│   ├── products/page.tsx            # S02 Danh sách & lọc sản phẩm
+│   ├── products/[slug]/page.tsx     # S03 Chi tiết sản phẩm
+│   ├── cart/page.tsx                # S04 Giỏ thuê
+│   ├── checkout/page.tsx            # S05 Checkout
+│   ├── checkout/result/page.tsx     # S06 Kết quả thanh toán VNPay
+│   ├── account/
+│   │   ├── page.tsx                 # S07 Hồ sơ cá nhân
+│   │   ├── orders/page.tsx          # S08 Danh sách đơn thuê
+│   │   └── orders/[code]/page.tsx   # S09 Chi tiết đơn thuê
+│   ├── login | register             # S10 Đăng nhập / Đăng ký
+│   ├── forgot-password | reset      # S11 Quên mật khẩu
+│   ├── posts | posts/[slug]         # S12 Blog & chi tiết bài viết
+│   ├── pages/[slug]                 # S13 Trang tĩnh (chính sách…)
+│   └── contact/page.tsx             # S14 Liên hệ
 │
 └── admin/                           # Giao diện quản trị
     ├── page.tsx                     # A01 Dashboard
-    ├── don-hang/page.tsx            # A02 Danh sách đơn
-    ├── don-hang/[code]/page.tsx     # A03 Chi tiết & xử lý đơn
-    ├── don-hang/tao-moi/page.tsx    # A04 Tạo đơn tại quầy (POS)
-    ├── lich/page.tsx                # A05 Lịch thuê tổng
-    ├── san-pham/page.tsx            # A06 Quản lý sản phẩm
-    ├── san-pham/[id]/page.tsx       # A07 Sửa sản phẩm & biến thể
-    ├── kho/page.tsx                 # A08 Quản lý cá thể
-    ├── tra-do/page.tsx              # A09 Quầy nhận trả (quét QR)
-    ├── giat-ui/page.tsx             # A10 Hàng đợi giặt/sửa
-    ├── khuyen-mai/page.tsx          # A11 Khuyến mãi
-    ├── danh-gia/page.tsx            # A12 Duyệt đánh giá
-    ├── khach-hang/page.tsx          # A13 Khách hàng
-    ├── bao-cao/page.tsx             # A14 Báo cáo
-    └── cai-dat/page.tsx             # A15 Cấu hình & phân quyền
+    ├── orders/page.tsx              # A02 Danh sách đơn thuê
+    ├── orders/[code]/page.tsx       # A03 Chi tiết & xử lý đơn
+    ├── returns/page.tsx             # A04 Quầy nhận trả & quyết toán cọc
+    ├── products/page.tsx            # A05 Quản lý sản phẩm
+    ├── products/[id]/page.tsx       # A06 Sửa sản phẩm + biến thể + ảnh
+    ├── categories | brands          # A07 Danh mục & thương hiệu
+    ├── stock/page.tsx               # A08 Tồn kho & phiếu nhập xuất
+    ├── coupons/page.tsx             # A09 Mã giảm giá
+    ├── reviews/page.tsx             # A10 Đánh giá
+    ├── contacts/page.tsx            # A11 Liên hệ khách hàng
+    ├── posts | pages | banners | menus   # A12 Quản trị nội dung
+    ├── users/page.tsx               # A13 Tài khoản
+    ├── reports/page.tsx             # A14 Báo cáo
+    └── settings/page.tsx            # A15 Cấu hình hệ thống
 ```
 
-**Ưu tiên làm trước (MVP bảo vệ được):** S01, S02, S03, S04, S05, S06, S08, S09, A01, A02, A03, A05, A06, A08, A09.
+**Ưu tiên làm trước (MVP bảo vệ được):** S01, S02, S03, S04, S05, S06, S08, S09, A01, A02, A03, A04, A05, A06, A08.
 
 ---
 
@@ -836,57 +1211,49 @@ app/
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  [Logo]   Danh mục ▾   Tìm kiếm...           [Giỏ thuê 2]  [Tài khoản]│
+│  [Logo]   Danh mục ▾   Tìm kiếm...            [Giỏ thuê 2] [Tài khoản]│
 ├──────────────────────────────────────────────────────────────────────┤
 │  Trang chủ / Áo dài / Áo dài cách tân đỏ thêu sen                     │
 │                                                                       │
 │ ┌──────────────────────┐  ┌────────────────────────────────────────┐ │
 │ │                      │  │ ÁO DÀI CÁCH TÂN ĐỎ THÊU SEN            │ │
-│ │      Ảnh chính       │  │ ★★★★☆ 4.6 (32 đánh giá) · Đã thuê 118 │ │
-│ │       (zoom)         │  │                                        │ │
-│ │                      │  │ 350.000đ /ngày                         │ │
-│ └──────────────────────┘  │ Cọc: 500.000đ (hoàn khi trả nguyên vẹn)│ │
-│ [▪][▪][▪][▪] thumbnails   │                                        │ │
+│ │      Ảnh chính       │  │ ★★★★☆ 4.6 (32 đánh giá) · 1.204 lượt xem│ │
+│ │       (zoom)         │  │ Thương hiệu: Tiệm May ABC              │ │
+│ │                      │  │                                        │ │
+│ └──────────────────────┘  │ 350.000đ /ngày                         │ │
+│ [▪][▪][▪][▪] thumbnails   │ Cọc: 70% × 2.000.000đ = 1.400.000đ     │ │
+│  (product_images)         │       (hoàn lại khi trả nguyên vẹn)    │ │
+│                           │                                        │ │
+│                           │ Màu:  [🔴 Đỏ] [🟡 Vàng] [⚪ Trắng ✗]  │ │
+│                           │ Size: [ S ] [ M ] [ L ] [ XL ✗ ]      │ │
+│                           │       ✗ = biến thể đã hết hàng         │ │
+│                           │ ✅ Còn 3 bộ  (SKU: AD-CT-DO-M)         │ │
+│                           │                                        │ │
 │                           │ ┌────────────────────────────────────┐ │ │
 │                           │ │ 📅 CHỌN NGÀY THUÊ                  │ │ │
-│                           │ │ Nhận: [12/10/2026] Trả:[15/10/2026]│ │ │
-│                           │ │ → 3 ngày · Gói 3 ngày: 900.000đ    │ │ │
-│                           │ │   (tiết kiệm 150.000đ)             │ │ │
+│                           │ │ Nhận: [01/10/2026] Trả:[03/10/2026]│ │ │
+│                           │ │ → 3 ngày × 350.000đ = 1.050.000đ   │ │ │
 │                           │ └────────────────────────────────────┘ │ │
 │                           │                                        │ │
-│                           │ Màu:  [🔴 Đỏ] [🟡 Vàng] [⚪ Trắng✗]   │ │
-│                           │ Size: [ S ] [ M ] [ L ] [XL✗]         │ │
-│                           │       ✗ = hết đồ trong khoảng ngày này │ │
-│                           │                                        │ │
-│                           │ ✅ Còn 2/3 bộ rảnh cho ngày bạn chọn   │ │
-│                           │                                        │ │
-│                           │ Số lượng: [− 1 +]                      │ │
+│                           │ Số lượng: [− 1 +]   (tối đa 3)         │ │
 │                           │ ┌──────────────────┐ ┌───────────────┐│ │
 │                           │ │ THÊM VÀO GIỎ THUÊ│ │ THUÊ NGAY     ││ │
 │                           │ └──────────────────┘ └───────────────┘│ │
-│                           │ ⏱ Giữ chỗ 15 phút sau khi thêm giỏ    │ │
 │                           └────────────────────────────────────────┘ │
 │                                                                       │
-│  ┌─ LỊCH TRỐNG THÁNG 10/2026 ────────────────────────────────────┐   │
-│  │  T2  T3  T4  T5  T6  T7  CN                                   │   │
-│  │   1   2   3   4   5   6   7    🟩 Còn nhiều  🟨 Sắp hết       │   │
-│  │  🟩  🟩  🟨  🟥  🟥  🟩  🟩    🟥 Hết đồ    ⬜ Không nhận    │   │
-│  │   8   9  10  11  12  13  14                                   │   │
-│  │  🟩  🟩  🟩  🟨  🟩  🟩  🟩                                   │   │
-│  └───────────────────────────────────────────────────────────────┘   │
-│                                                                       │
-│  [Mô tả] [Chất liệu & bảo quản] [Bảng size] [Chính sách] [Đánh giá]  │
+│  [Mô tả] [Hướng dẫn chọn size] [Chính sách thuê & cọc] [Đánh giá 32] │
 │  ─────────────────────────────────────────────────────────────────   │
-│  Chất liệu: lụa tơ tằm, thêu tay hoạ tiết sen...                     │
+│  Chất liệu lụa tơ tằm, thêu tay hoạ tiết sen, tình trạng 98% New…    │
 │                                                                       │
-│  SẢN PHẨM TƯƠNG TỰ    [▪][▪][▪][▪]                                   │
+│  SẢN PHẨM CÙNG DANH MỤC    [▪][▪][▪][▪]                              │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 **Điểm cần chú ý khi code:**
-- Date picker phải gọi `/products/{slug}/calendar` để tô màu ngày và **chặn chọn ngày hết đồ**.
-- Đổi ngày → gọi lại `/availability` → cập nhật lại trạng thái ✗ của từng size/màu. Debounce 300ms.
-- Hiển thị rõ **cọc tách khỏi tiền thuê** — khách rất hay hiểu nhầm chỗ này.
+- Đổi size / màu → gọi lại `/products/{slug}/variants` để cập nhật `stock_quantity` và trạng thái ✗.
+- Chặn chọn `rent_start_date` trong quá khứ, `rent_end_date < rent_start_date`, và số ngày > 30 (BR-05).
+- Hiển thị **cọc tách khỏi tiền thuê** ngay từ trang chi tiết — khách rất hay hiểu nhầm chỗ này.
+- Nút "Thêm vào giỏ" khi chưa đăng nhập vẫn cho bấm, nhưng tới bước checkout mới bắt đăng nhập.
 
 ---
 
@@ -894,28 +1261,29 @@ app/
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  GIỎ THUÊ CỦA BẠN                          ⏱ Giữ chỗ còn 12:45      │
+│  GIỎ THUÊ CỦA BẠN                                                    │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ┌──────────────────────────────────────────────────────────────────┐ │
-│ │ [ảnh] Áo dài cách tân đỏ · Size M                        [Xoá]   │ │
-│ │       Nhận 12/10 → Trả 15/10 (3 ngày)      [Đổi ngày]            │ │
-│ │       SL: [− 1 +]        Thuê: 900.000đ   Cọc: 500.000đ          │ │
-│ │       ✅ Còn rảnh                                                 │ │
+│ │ [ảnh] Áo dài cách tân đỏ · Size M · Đỏ Ruby            [Xoá]     │ │
+│ │       Nhận 01/10 → Trả 03/10  (3 ngày)     [Đổi ngày]           │ │
+│ │       SL: [− 1 +]     Thuê: 1.050.000đ   Cọc: 1.400.000đ        │ │
+│ │       ✅ Còn 3 bộ                                                │ │
 │ ├──────────────────────────────────────────────────────────────────┤ │
-│ │ [ảnh] Vest nam đen · Size L                              [Xoá]   │ │
-│ │       Nhận 12/10 → Trả 15/10 (3 ngày)      [Đổi ngày]            │ │
-│ │       SL: [− 1 +]        Thuê: 750.000đ   Cọc: 800.000đ          │ │
+│ │ [ảnh] Vest nam đen · Size L · Đen Tuyền                [Xoá]     │ │
+│ │       Nhận 01/10 → Trả 03/10  (3 ngày)     [Đổi ngày]           │ │
+│ │       SL: [− 1 +]     Thuê:   750.000đ   Cọc: 2.100.000đ        │ │
 │ │       ⚠️ Chỉ còn 1 bộ — đặt sớm kẻo hết                          │ │
 │ └──────────────────────────────────────────────────────────────────┘ │
 │                                                                       │
-│  Mã giảm giá: [____________] [Áp dụng]                               │
+│  Mã giảm giá: [THUEHE50K______] [Áp dụng]                            │
+│  ✅ Áp dụng thành công — giảm 50.000đ                                 │
 │                                                                       │
 │                        ┌──────────────────────────────────────┐      │
-│                        │ Tiền thuê          1.650.000đ        │      │
-│                        │ Giảm giá (SEN10)    −165.000đ        │      │
-│                        │ Tiền cọc           1.300.000đ        │      │
+│                        │ Tiền thuê          1.800.000đ        │      │
+│                        │ Giảm giá            −50.000đ         │      │
+│                        │ Tiền cọc           3.500.000đ        │      │
 │                        │ ──────────────────────────────       │      │
-│                        │ Tạm tính           2.785.000đ        │      │
+│                        │ Tạm tính           5.250.000đ        │      │
 │                        │ ⓘ Cọc hoàn lại khi trả nguyên vẹn    │      │
 │                        │  ┌────────────────────────────────┐  │      │
 │                        │  │      TIẾN HÀNH THUÊ            │  │      │
@@ -923,6 +1291,8 @@ app/
 │                        └──────────────────────────────────────┘      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+> Giỏ thuê lưu ở `localStorage`, nhưng mỗi lần mở trang phải gọi `POST /cart/quote` để backend tính lại tiền và kiểm tra tồn kho — không tin số tiền đã lưu ở máy khách.
 
 ---
 
@@ -932,29 +1302,29 @@ app/
 ┌──────────────────────────────────────────────────────────────────────┐
 │  ① Thông tin  ──  ② Thanh toán  ──  ③ Hoàn tất                       │
 ├───────────────────────────────────────┬──────────────────────────────┤
-│ NHẬN ĐỒ                               │ ĐƠN THUÊ CỦA BẠN             │
-│ ( ) Nhận tại cửa hàng — miễn phí      │ ┌──────────────────────────┐ │
-│     123 Nguyễn Văn Cừ, Q5             │ │ Áo dài đỏ M × 1          │ │
-│ (•) Giao tận nơi (2 chiều) +60.000đ   │ │ 12/10 → 15/10   900.000đ │ │
-│                                       │ │ Vest đen L × 1           │ │
-│ Người nhận: [Lê Võ Nhật Pin        ]  │ │ 12/10 → 15/10   750.000đ │ │
-│ Điện thoại: [09xx xxx xxx          ]  │ ├──────────────────────────┤ │
-│ Địa chỉ:    [Chọn từ sổ ▾ / nhập mới] │ │ Tiền thuê    1.650.000đ  │ │
-│                                       │ │ Giảm giá      −165.000đ  │ │
-│ SỐ ĐO (giúp shop chọn đồ vừa vặn)     │ │ Phí giao        60.000đ  │ │
-│ Cao [   ]cm  Nặng [   ]kg             │ │ Tiền cọc     1.300.000đ  │ │
-│ V1 [  ] V2 [  ] V3 [  ]  [Lưu vào HS] │ │ ────────────────────────  │ │
-│                                       │ │ TỔNG        2.845.000đ   │ │
-│ HÌNH THỨC THANH TOÁN                  │ │                          │ │
-│ (•) Cọc giữ chỗ — trả ngay 1.795.000đ │ │ Trả ngay:   1.795.000đ   │ │
-│     (cọc + 30% tiền thuê)             │ │ Trả khi nhận: 1.050.000đ │ │
-│     Còn lại trả khi nhận đồ           │ └──────────────────────────┘ │
-│ ( ) Trả đủ ngay — giảm thêm 2%        │                              │
+│ HÌNH THỨC NHẬN ĐỒ                     │ ĐƠN THUÊ CỦA BẠN             │
+│ ( ) Đến shop lấy trực tiếp — miễn phí │ ┌──────────────────────────┐ │
+│     123 Nguyễn Văn Cừ, Q5, TP.HCM     │ │ Áo dài đỏ · M × 1        │ │
+│ (•) Giao hàng tận nơi      +50.000đ   │ │ 01/10 → 03/10  1.050.000đ│ │
+│                                       │ │ Vest đen · L × 1         │ │
+│ THÔNG TIN NGƯỜI NHẬN                  │ │ 01/10 → 03/10    750.000đ│ │
+│ Họ tên:   [Lê Võ Nhật Pin          ]  │ ├──────────────────────────┤ │
+│ Điện thoại:[0901234567             ]  │ │ Tiền thuê    1.800.000đ  │ │
+│ Email:    [pin@example.com         ]  │ │ Giảm giá       −50.000đ  │ │
+│ Địa chỉ:  [123 Nguyễn Văn Cừ, Q5   ]  │ │ Phí giao        50.000đ  │ │
+│           (bắt buộc khi giao tận nơi) │ │ Tiền cọc     3.500.000đ  │ │
+│                                       │ │ ────────────────────────  │ │
+│ Ghi chú: [Giao trước 14h chiều_____]  │ │ TỔNG THANH TOÁN          │ │
+│                                       │ │              5.300.000đ  │ │
+│ PHƯƠNG THỨC THANH TOÁN                │ │ ⓘ Trong đó 3.500.000đ là │ │
+│ (•) VNPay — thanh toán ngay           │ │   tiền cọc sẽ được hoàn  │ │
+│ ( ) Tiền mặt — trả khi nhận đồ        │ └──────────────────────────┘ │
+│                                       │                              │
 │                                       │  [ ] Tôi đồng ý với          │
-│ CỔNG THANH TOÁN                       │      Điều khoản thuê đồ      │
-│ (•) VNPay  ( ) MoMo  ( ) Chuyển khoản │  ┌────────────────────────┐  │
-│                                       │  │   ĐẶT THUÊ & THANH TOÁN│  │
-│ Ghi chú: [__________________________] │  └────────────────────────┘  │
+│                                       │      Chính sách thuê & cọc   │
+│                                       │  ┌────────────────────────┐  │
+│                                       │  │  ĐẶT THUÊ & THANH TOÁN │  │
+│                                       │  └────────────────────────┘  │
 └───────────────────────────────────────┴──────────────────────────────┘
 ```
 
@@ -964,34 +1334,46 @@ app/
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ĐƠN #CR20260909-0001                            [Trạng thái: ĐANG THUÊ]│
+│  ĐƠN #ORD2026-001                           [Trạng thái: ĐANG THUÊ]  │
 ├──────────────────────────────────────────────────────────────────────┤
 │  ●━━━━━●━━━━━●━━━━━●━━━━━○━━━━━○                                     │
-│  Đặt   Xác   Soạn  Nhận  Trả   Hoàn                                  │
-│        nhận  đồ    đồ    đồ    tất                                    │
+│  Chờ   Đã xác Đang  Đang  Đang  Hoàn                                 │
+│  xác   nhận   giao  thuê  trả   tất                                  │
+│  nhận                                                                 │
 │                                                                       │
-│  ⏰ Hạn trả: 15/10/2026 18:00  —  còn 2 ngày                          │
-│     [Yêu cầu gia hạn]                                                 │
+│  ⏰ Hạn trả: 03/10/2026  —  còn 2 ngày                                │
 │                                                                       │
 │  SẢN PHẨM ĐANG THUÊ                                                   │
 │  ┌──────────────────────────────────────────────────────────────────┐ │
-│  │ [ảnh] Áo dài đỏ · M · Mã đồ AD-M-DO-003                          │ │
-│  │ [ảnh] Vest đen · L · Mã đồ VS-L-DEN-001                          │ │
+│  │ [ảnh] Áo dài cách tân đỏ · M · Đỏ Ruby   ×1                      │ │
+│  │       01/10 → 03/10 (3 ngày) · 350.000đ/ngày                     │ │
+│  │ [ảnh] Vest nam đen · L · Đen Tuyền       ×1                      │ │
+│  │       01/10 → 03/10 (3 ngày) · 250.000đ/ngày                     │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 │                                                                       │
-│  BIÊN BẢN LÚC GIAO (ảnh tình trạng)  [▪][▪][▪]                        │
+│  GIAO NHẬN                                                            │
+│  Giao tận nơi · 123 Nguyễn Văn Cừ, Q5, TP.HCM · 0901234567           │
+│  Ghi chú: "Giao trước 14h chiều"                                      │
 │                                                                       │
 │  THANH TOÁN                                                           │
-│  Tiền thuê 1.650.000đ · Giảm −165.000đ · Ship 60.000đ                │
-│  Cọc 1.300.000đ                                                       │
-│  Đã trả: 2.845.000đ (VNPay 09/09 · Tiền mặt 12/10)                   │
+│  Tiền thuê 1.800.000đ · Giảm −50.000đ · Phí giao 50.000đ             │
+│  Tiền cọc 3.500.000đ                                                  │
+│  Tổng 5.300.000đ · Đã thanh toán qua VNPay ngày 28/09                │
 │                                                                       │
 │  [Liên hệ shop]  [Xem chính sách trả đồ]                              │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Khi đơn đã `completed`, khối thanh toán đổi thành **bảng quyết toán**:
-`Cọc 1.300.000đ − Phí trễ 0đ − Phí giặt đặc biệt 100.000đ = Hoàn lại 1.200.000đ (đã hoàn ngày 17/10)`.
+Khi đơn `completed`, khối thanh toán đổi thành **bảng quyết toán** lấy từ `rental_returns`:
+
+```
+  BIÊN BẢN TRẢ ĐỒ — ngày 05/10/2026
+  Tiền cọc đã giữ                              3.500.000đ
+  Phí phạt: "Trễ 2 ngày: 900.000đ;
+             đứt cúc áo: 150.000đ"            −1.050.000đ
+  ─────────────────────────────────────────────────────
+  ĐÃ HOÀN LẠI                                  2.450.000đ  (05/10/2026)
+```
 
 ---
 
@@ -1001,25 +1383,25 @@ Khi đơn đã `completed`, khối thanh toán đổi thành **bảng quyết to
 ┌──────────────────────────────────────────────────────────────────────┐
 │ ☰  CRS Admin                                    🔔 5   Nhật Pin ▾    │
 ├────────────┬─────────────────────────────────────────────────────────┤
-│ Dashboard  │  HÔM NAY — 09/09/2026                                   │
-│ Đơn hàng   │  ┌──────────┐┌──────────┐┌──────────┐┌──────────┐      │
-│ Lịch thuê  │  │Đơn mới   ││Cần giao  ││Cần nhận  ││Quá hạn   │      │
+│ Dashboard  │  HÔM NAY — 15/09/2026                                   │
+│ Đơn thuê   │  ┌──────────┐┌──────────┐┌──────────┐┌──────────┐      │
+│ Trả đồ     │  │Đơn mới   ││Cần giao  ││Cần nhận  ││Quá hạn   │      │
 │ Sản phẩm   │  │   12     ││    8     ││    5     ││    2 ⚠️  │      │
-│ Kho đồ     │  └──────────┘└──────────┘└──────────┘└──────────┘      │
-│ Trả đồ     │  ┌──────────┐┌──────────┐┌──────────┐┌──────────┐      │
-│ Giặt ủi    │  │Doanh thu ││Cọc đang  ││Đang giặt ││Tỷ lệ khai│      │
-│ Khuyến mãi │  │ 18.5tr   ││giữ 42tr  ││   14     ││thác 68%  │      │
+│ Danh mục   │  └──────────┘└──────────┘└──────────┘└──────────┘      │
+│ Thương hiệu│  ┌──────────┐┌──────────┐┌──────────┐┌──────────┐      │
+│ Tồn kho    │  │Doanh thu ││Cọc đang  ││Sắp hết   ││Liên hệ   │      │
+│ Mã giảm giá│  │ 18,5 tr  ││giữ 42 tr ││hàng  6   ││chưa TL 3 │      │
 │ Đánh giá   │  └──────────┘└──────────┘└──────────┘└──────────┘      │
-│ Khách hàng │                                                          │
-│ Báo cáo    │  ⚠️ CẦN XỬ LÝ NGAY                                      │
-│ Cài đặt    │  • CR20260901-0007 quá hạn 3 ngày — Nguyễn A — [Gọi]   │
-│            │  • CR20260905-0012 chờ Manager duyệt phí 1.2tr [Xem]   │
-│            │  • Váy cưới VC-M-TR-002 hỏng nặng — chờ quyết định     │
-│            │                                                          │
-│            │  ┌─ ĐƠN CẦN GIAO HÔM NAY ────────────────────────────┐ │
-│            │  │ Mã       Khách      Món  Hình thức   Thao tác     │ │
-│            │  │ ...0021  Trần B     2    Tại shop   [Bàn giao]    │ │
-│            │  │ ...0022  Lê C       1    Ship       [In phiếu]    │ │
+│ Liên hệ    │                                                          │
+│ Bài viết   │  ⚠️ CẦN XỬ LÝ NGAY                                      │
+│ Trang tĩnh │  • ORD2026-007 quá hạn trả 3 ngày — Nguyễn A  [Gọi]    │
+│ Banner     │  • ORD2026-012 chờ xác nhận, đã thanh toán    [Xem]    │
+│ Menu       │  • VAY-DH-DO-M chỉ còn 1 bộ — cân nhắc nhập thêm       │
+│ Tài khoản  │                                                          │
+│ Báo cáo    │  ┌─ ĐƠN CẦN GIAO HÔM NAY ────────────────────────────┐ │
+│ Cấu hình   │  │ Mã đơn      Khách     Món  Hình thức   Thao tác   │ │
+│            │  │ ORD2026-021 Trần B    2    Tại shop   [Bàn giao]  │ │
+│            │  │ ORD2026-022 Lê C      1    Giao nơi   [In phiếu]  │ │
 │            │  └───────────────────────────────────────────────────┘ │
 │            │                                                          │
 │            │  [Biểu đồ doanh thu 30 ngày]   [Top 5 đồ thuê nhiều]   │
@@ -1028,174 +1410,149 @@ Khi đơn đã `completed`, khối thanh toán đổi thành **bảng quyết to
 
 ---
 
-#### A03 — Chi tiết & xử lý đơn (màn hình làm việc chính của Staff)
+#### A03 — Chi tiết & xử lý đơn thuê
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ ← Đơn CR20260909-0001        [CONFIRMED]     [Huỷ đơn] [In phiếu]   │
+│ ← Đơn ORD2026-001        [CONFIRMED · PAID]    [Huỷ đơn] [In phiếu]  │
 ├──────────────────────────────────────┬───────────────────────────────┤
 │ KHÁCH HÀNG                           │ HÀNH ĐỘNG TIẾP THEO           │
-│ Lê Võ Nhật Pin · 09xx xxx xxx        │ ┌───────────────────────────┐ │
-│ pinbeauta@gmail.com                  │ │  ► SOẠN ĐỒ & GÁN CÁ THỂ   │ │
+│ Lê Võ Nhật Pin · 0901234567          │ ┌───────────────────────────┐ │
+│ pin@example.com                      │ │  ► GIAO ĐỒ (trừ tồn kho)  │ │
 │ Đã thuê 4 lần · 0 lần vi phạm ✅     │ └───────────────────────────┘ │
-│                                      │                               │
-│ THỜI GIAN                            │ TIẾN TRÌNH                    │
-│ Nhận 12/10  ·  Trả 15/10 18:00       │ ✓ 09/09 10:12 Tạo đơn         │
-│ Giao tận nơi — Q5, TP.HCM            │ ✓ 09/09 10:15 Thanh toán cọc  │
-│                                      │ ✓ 09/09 10:15 Xác nhận (auto) │
-│ SẢN PHẨM                             │ ○ Soạn đồ                     │
-│ ┌──────────────────────────────────┐ │ ○ Bàn giao                    │
-│ │ Áo dài đỏ · M                    │ │ ○ Nhận lại                    │
-│ │ Cá thể: [Chọn ▾] AD-M-DO-003     │ │                               │
-│ │         (đã thuê 12 lần, tốt)    │ │ THANH TOÁN                    │
-│ │ Thuê 900.000đ · Cọc 500.000đ     │ │ Phải thu  2.845.000đ          │
-│ ├──────────────────────────────────┤ │ Đã thu    1.795.000đ (VNPay)  │
-│ │ Vest đen · L                     │ │ Còn lại   1.050.000đ          │
-│ │ Cá thể: [Chọn ▾] VS-L-DEN-001    │ │ [Ghi nhận thu tiền mặt]       │
-│ │ Thuê 750.000đ · Cọc 800.000đ     │ │                               │
-│ └──────────────────────────────────┘ │ GHI CHÚ NỘI BỘ                │
-│                                      │ [_______________________]     │
-│ Ghi chú khách: "Cần sửa lai áo dài"  │ [Lưu]                         │
+│                                      │  Chuyển: confirmed→delivering │
+│ GIAO NHẬN                            │                               │
+│ Giao tận nơi · 123 Nguyễn Văn Cừ, Q5 │ TIẾN TRÌNH                    │
+│ Thuê 01/10 → Trả 03/10 (3 ngày)      │ ✓ 28/09 10:12 Đặt đơn         │
+│ Ghi chú: "Giao trước 14h"            │ ✓ 28/09 10:15 VNPay thành công│
+│                                      │ ✓ 28/09 10:40 Xác nhận đơn    │
+│ SẢN PHẨM                             │ ○ Giao đồ                     │
+│ ┌──────────────────────────────────┐ │ ○ Đang thuê                   │
+│ │ Áo dài đỏ · M · AD-CT-DO-M  ×1   │ │ ○ Nhận lại & quyết toán       │
+│ │ 350.000đ/ngày × 3 = 1.050.000đ   │ │                               │
+│ │ Cọc 1.400.000đ  · Kho còn: 3     │ │ THANH TOÁN                    │
+│ ├──────────────────────────────────┤ │ Phải thu   5.300.000đ         │
+│ │ Vest đen · L · VS-DEN-L     ×1   │ │ Đã thu     5.300.000đ (VNPay) │
+│ │ 250.000đ/ngày × 3 =   750.000đ   │ │ Còn lại            0đ         │
+│ │ Cọc 2.100.000đ  · Kho còn: 1 ⚠️  │ │ [Ghi nhận thu tiền mặt]       │
+│ └──────────────────────────────────┘ │                               │
+│                                      │ Mã giảm giá: THUEHE50K −50.000│
 └──────────────────────────────────────┴───────────────────────────────┘
 ```
 
-Dropdown **"Chọn cá thể"** chỉ liệt kê cá thể `available` và không chồng lịch (BR-01), sắp xếp theo `rental_count` tăng dần, hiển thị kèm tình trạng và vị trí kệ.
+> Nút "Giao đồ" phải kiểm tra lại tồn kho ngay trước khi trừ (BR-04). Nếu một biến thể đã hết, hiện cảnh báo đỏ và chặn chuyển trạng thái.
 
 ---
 
-#### A05 — Lịch thuê tổng ⭐ *màn hình gây ấn tượng nhất khi demo*
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ LỊCH THUÊ   [◄ Tháng 10/2026 ►]   Lọc: [Danh mục ▾][Trạng thái ▾]   │
-│                                    Xem: (•)Timeline ( )Lưới tháng    │
-├────────────────┬─────────────────────────────────────────────────────┤
-│ CÁ THỂ         │ 10  11  12  13  14  15  16  17  18  19  20  21     │
-├────────────────┼─────────────────────────────────────────────────────┤
-│ AD-M-DO-001    │     ▓▓▓▓▓▓▓▓▓▓▓▓ CR-0018 ░░                        │
-│ AD-M-DO-002    │ ░░░░░░ ▓▓▓▓▓▓▓▓ CR-0021 ░░                        │
-│ AD-M-DO-003    │         ▓▓▓▓▓▓▓▓▓▓▓ CR-0001 ░░                    │
-│ AD-L-DO-001    │                     ▓▓▓▓▓▓▓ CR-0025 ░░            │
-│ VS-L-DEN-001   │         ▓▓▓▓▓▓▓▓▓▓▓ CR-0001 ░░                    │
-│ VS-L-DEN-002   │ ▒▒▒▒▒▒▒▒▒▒ đang sửa                                │
-│ VC-M-TR-001    │             ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ CR-0030 ░░░░          │
-├────────────────┴─────────────────────────────────────────────────────┤
-│ ▓ Đang thuê/đã đặt   ░ Buffer giặt ủi   ▒ Bảo trì   (trống) = rảnh   │
-│ Click vào thanh → mở nhanh đơn.  Kéo thả → đổi cá thể (Manager).     │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-> Màn này thể hiện trực quan **toàn bộ điểm khác biệt** của bài toán cho thuê. Thư viện gợi ý: `vis-timeline`, `@fullcalendar/resource-timeline`, hoặc tự vẽ bằng CSS Grid (nhẹ, dễ giải thích).
-
----
-
-#### A09 — Quầy nhận trả đồ ⭐ *nơi hội tụ nhiều nghiệp vụ nhất*
+#### A04 — Quầy nhận trả đồ & quyết toán cọc ⭐ *nơi hội tụ nhiều nghiệp vụ nhất*
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ NHẬN TRẢ ĐỒ                                                          │
-│ Quét mã: [ ▮ AD-M-DO-003________ ]  hoặc  [Tìm đơn theo SĐT/mã đơn]  │
+│ Tìm đơn: [ORD2026-001____] hoặc [SĐT khách___________]  [Tìm]        │
 ├──────────────────────────────────────────────────────────────────────┤
-│ ĐƠN CR20260909-0001 · Lê Võ Nhật Pin · Hạn trả 15/10 18:00           │
-│ 🔴 TRỄ 2 NGÀY 3 GIỜ                                                  │
+│ ĐƠN ORD2026-001 · Lê Võ Nhật Pin · Hạn trả 03/10/2026                │
+│ 🔴 TRỄ 2 NGÀY                                                        │
 │                                                                       │
-│ ┌── AD-M-DO-003 — Áo dài đỏ M ─────────────────────── ✅ Đã quét ──┐ │
-│ │ Tình trạng:                                                       │ │
-│ │  (•) Nguyên vẹn   ( ) Bẩn nặng   ( ) Hư nhẹ  ( ) Hư nặng ( ) Mất │ │
-│ │ Ảnh minh chứng: [📷 Chụp/Tải lên]  [▪][▪]                        │ │
-│ │ Ghi chú: [________________________________]                      │ │
-│ │ → Sau khi nhận: chuyển sang [Giặt ủi ▾]                          │ │
-│ └───────────────────────────────────────────────────────────────────┘ │
-│ ┌── VS-L-DEN-001 — Vest đen L ─────────────────────── ⬜ Chưa quét ─┐ │
-│ │ ⚠️ Khách chưa trả món này                                         │ │
-│ └───────────────────────────────────────────────────────────────────┘ │
+│ Ngày trả thực tế: [05/10/2026 ▾]                                     │
 │                                                                       │
-│ ┌── QUYẾT TOÁN ────────────────────────────────────────────────────┐ │
-│ │ Tiền cọc đang giữ (cả đơn)                     1.300.000đ        │ │
-│ │ Tạm giữ cho VS-L-DEN-001 (chưa trả)              800.000đ        │ │
-│ │ Cọc quyết toán đợt này (AD-M-DO-003)             500.000đ        │ │
-│ │ Phí trễ (2 ngày × 1.5 × 300.000)      [gợi ý]   −900.000đ  [Sửa] │ │
-│ │ Phí giặt đặc biệt                     [gợi ý]         −0đ  [Sửa] │ │
-│ │ Phí hư hỏng                                           −0đ        │ │
+│ ┌── KIỂM TRA TỪNG MÓN ─────────────────────────────────────────────┐ │
+│ │ Áo dài đỏ · M · AD-CT-DO-M  ×1                                   │ │
+│ │  (•) Nguyên vẹn  ( ) Bẩn nặng  ( ) Hư nhẹ  ( ) Hư nặng  ( ) Mất │ │
+│ │  Phí thêm: [_______0đ]   ☑ Nhập lại kho                         │ │
+│ ├──────────────────────────────────────────────────────────────────┤ │
+│ │ Vest đen · L · VS-DEN-L  ×1                                      │ │
+│ │  ( ) Nguyên vẹn  ( ) Bẩn nặng  (•) Hư nhẹ  ( ) Hư nặng  ( ) Mất │ │
+│ │  Phí thêm: [_150.000đ]   ☑ Nhập lại kho (sau khi sửa)           │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│                                                                       │
+│ ┌── QUYẾT TOÁN CỌC ────────────────────────────────────────────────┐ │
+│ │ Tiền cọc đang giữ                              3.500.000đ        │ │
+│ │ Phí trễ: 2 ngày × 1.5 × 600.000đ   [gợi ý]      −900.000đ [Sửa] │ │
+│ │ Phí hư hỏng (từ bảng trên)                      −150.000đ        │ │
 │ │ ──────────────────────────────────────────────────────────       │ │
-│ │ KHÁCH CÒN NỢ                                     400.000đ        │ │
-│ │ (phí vượt phần cọc quyết toán → ghi công nợ, trừ tiếp vào        │ │
-│ │  800.000đ còn giữ khi khách trả nốt vest)                        │ │
-│ │ ⚠️ Phí 900.000đ vượt hạn mức Staff (500.000đ) → cần Manager duyệt│ │
+│ │ TỔNG PHẠT (penalty_fee)                        1.050.000đ        │ │
+│ │ HOÀN LẠI KHÁCH (deposit_refund_amount)         2.450.000đ        │ │
 │ │                                                                   │ │
-│ │ [Lưu nháp]              [GỬI DUYỆT & HOÀN TẤT]                   │ │
+│ │ Lý do phạt: [Trễ 2 ngày: 900.000đ; đứt cúc áo: 150.000đ_______] │ │
+│ │ Ghi chú:    [Đã nhận đủ 2 món, vest cần sửa cúc_______________] │ │
+│ │                                                                   │ │
+│ │ Hoàn bằng: (•) Tiền mặt  ( ) Chuyển khoản/VNPay                 │ │
+│ │                                                                   │ │
+│ │ [Lưu nháp]          [LẬP BIÊN BẢN & HOÀN CỌC]                    │ │
 │ └───────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+Bấm **Lập biên bản & hoàn cọc** → trong một transaction: tạo `rental_returns`, tạo `payments` (`deposit_refund`), cập nhật `orders.refunded_deposit` + `payment_status = refunded` + `order_status = completed`, cộng lại `stock_quantity` cho các dòng có ☑ "Nhập lại kho". Món bỏ tick sẽ nhắc admin lập phiếu `export` (BR-33).
+
 ---
 
-#### A08 — Quản lý kho cá thể
+#### A08 — Tồn kho & phiếu nhập xuất
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ KHO ĐỒ    [+ Thêm cá thể]  [In mã QR hàng loạt]  [Xuất Excel]        │
-│ Lọc: [Sản phẩm ▾][Size ▾][Màu ▾][Trạng thái ▾][Vị trí ▾]  🔍 [____]  │
+│ TỒN KHO      [+ Phiếu nhập kho]  [+ Phiếu xuất huỷ]  [Xuất Excel]    │
+│ Lọc: [Danh mục ▾][Sản phẩm ▾][Size ▾][Màu ▾]  ☑ Chỉ hiện sắp hết    │
 ├──────────────────────────────────────────────────────────────────────┤
-│ ☐ Mã đồ         Sản phẩm        Size Màu  Trạng thái  Lượt  Vị trí   │
-│ ☐ AD-M-DO-001   Áo dài đỏ sen   M   Đỏ   🟢 Rảnh      24   A1-03    │
-│ ☐ AD-M-DO-002   Áo dài đỏ sen   M   Đỏ   🔵 Đang thuê 18   —        │
-│ ☐ AD-M-DO-003   Áo dài đỏ sen   M   Đỏ   🟡 Đang giặt 12   Giặt     │
-│ ☐ VS-L-DEN-002  Vest nam đen    L   Đen  🟠 Đang sửa   31   Xưởng    │
-│ ☐ VC-M-TR-004   Váy cưới trắng  M   Trắng ⚫ Thanh lý   47   —       │
+│ SKU              Sản phẩm          Size Màu      Tình trạng  Tồn     │
+│ AD-CT-DO-S       Áo dài cách tân   S    Đỏ Ruby  99% New      5      │
+│ AD-CT-DO-M       Áo dài cách tân   M    Đỏ Ruby  99% New      3      │
+│ AD-CT-DO-L       Áo dài cách tân   L    Đỏ Ruby  98% New      0 🔴   │
+│ VS-DEN-L         Vest nam đen      L    Đen      99% New      1 🟠   │
+│ VAY-DH-TR-M      Váy dạ hội trắng  M    Trắng    Mới 100%     8      │
 ├──────────────────────────────────────────────────────────────────────┤
-│ Đã chọn 0  ·  [Đổi trạng thái hàng loạt ▾]  ·  Tổng 248 cá thể       │
+│ Tổng 42 biến thể · 186 bộ trong kho · 6 biến thể sắp hết (≤2)        │
+└──────────────────────────────────────────────────────────────────────┘
+
+┌─ LẬP PHIẾU NHẬP KHO ─────────────────────────────────────────────────┐
+│ Mã phiếu: PNK-2026-014 (tự sinh)   Loại: (•) Nhập  ( ) Xuất huỷ      │
+│ Lý do: [Nhập bổ sung áo dài size L cho mùa cưới________________]     │
+│                                                                       │
+│ Chi tiết:                                                             │
+│ ┌──────────────────────────────────────────────────────────────────┐ │
+│ │ SKU            Sản phẩm            SL     Đơn giá vốn  Thành tiền │ │
+│ │ [AD-CT-DO-L ▾] Áo dài cách tân L  [ 3 ]  [1.800.000]  5.400.000đ │ │
+│ │ [VS-DEN-L   ▾] Vest nam đen L     [ 2 ]  [2.500.000]  5.000.000đ │ │
+│ │ [+ Thêm dòng]                                                     │ │
+│ └──────────────────────────────────────────────────────────────────┘ │
+│                                       TỔNG GIÁ TRỊ:    10.400.000đ   │
+│                                       [Huỷ]  [LƯU PHIẾU]             │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Click một dòng → panel bên phải: ảnh, lịch sử thuê, nhật ký vòng đời, chi phí bảo trì luỹ kế, **ROI cá thể** (`tổng doanh thu ÷ giá mua`) — chỉ số này rất "ăn tiền" khi bảo vệ.
-
 ---
 
-#### A10 — Hàng đợi giặt ủi / bảo trì (dạng Kanban)
+#### A06 — Sửa sản phẩm, biến thể & ảnh
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ GIẶT ỦI & BẢO TRÌ                            [+ Tạo việc thủ công]   │
-├──────────────┬──────────────┬──────────────┬─────────────────────────┤
-│ CHỜ XỬ LÝ 8  │ ĐANG GIẶT 5  │ ĐANG SỬA 3   │ HOÀN TẤT (hôm nay) 11   │
-├──────────────┼──────────────┼──────────────┼─────────────────────────┤
-│┌────────────┐│┌────────────┐│┌────────────┐│┌───────────────────────┐│
-││AD-M-DO-003 │││AD-L-VA-001 │││VS-L-DEN-002│││VC-M-TR-001            ││
-││Áo dài đỏ M │││Áo dài vàng │││Vest đen L  │││Váy cưới M             ││
-││Bẩn nặng    │││Giặt thường │││Bung chỉ tay│││✓ Đã QC — về kho       ││
-││⏰ Cần xong  │││Từ 10:20    │││Chi phí 80k │││                       ││
-││   trước 11/10│││           │││            │││                       ││
-│└────────────┘│└────────────┘│└────────────┘│└───────────────────────┘│
-│              │              │              │                         │
-│ Kéo thả thẻ giữa các cột để đổi trạng thái cá thể                    │
-└──────────────┴──────────────┴──────────────┴─────────────────────────┘
-```
-
-> Cột "Chờ xử lý" phải **sắp theo deadline**: cá thể nào đã có booking kế tiếp gần nhất thì ưu tiên giặt trước. Đây là một tính năng nhỏ nhưng cho thấy hiểu nghiệp vụ rất rõ.
-
----
-
-#### A04 — Tạo đơn tại quầy (POS)
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ TẠO ĐƠN TẠI QUẦY                                                     │
-├───────────────────────────────────────┬──────────────────────────────┤
-│ Khách: [🔍 SĐT/tên...] hoặc [+ Khách mới]│ GIỎ ĐƠN                    │
-│ → Trần Văn B · 0909xxx · Thuê 6 lần    │ Áo dài đỏ M  900.000đ  [x] │
-│                                        │ Vest đen L   750.000đ  [x] │
-│ Ngày thuê: [12/10] → [15/10]  (3 ngày) │ ───────────────────────    │
-│                                        │ Thuê      1.650.000đ       │
-│ Tìm đồ: [🔍 tên/mã/quét QR________]    │ Cọc       1.300.000đ       │
-│ ┌────────────────────────────────────┐ │ Giảm giá  [____] đ         │
-│ │ [ảnh] Áo dài đỏ M  🟢 còn 2  [Thêm]│ │ TỔNG      2.950.000đ       │
-│ │ [ảnh] Áo dài đỏ L  🔴 hết         │ │                            │
-│ │ [ảnh] Vest đen L   🟢 còn 1  [Thêm]│ │ Thu: (•)Tiền mặt ( )CK    │
-│ └────────────────────────────────────┘ │ Nhận: [_________] đ        │
-│                                        │ Thối:      0đ              │
-│ Giấy tờ thế chân: [CCCD ▾] đã nhận ☑   │ [TẠO ĐƠN & BÀN GIAO NGAY]  │
-└───────────────────────────────────────┴──────────────────────────────┘
+│ ← Áo dài cách tân đỏ thêu sen                    [Lưu] [Xem trên web]│
+├──────────────────────────────────────────────────────────────────────┤
+│ [Thông tin chung] [Biến thể] [Thư viện ảnh] [SEO]                    │
+│ ─────────────────────────────────────────────────────────────────────│
+│ Tên:        [Áo dài cách tân đỏ thêu sen____________________]        │
+│ Slug:       [ao-dai-cach-tan-do-theu-sen___] (tự sinh, sửa được)     │
+│ Danh mục:   [Áo dài ▾]       Thương hiệu: [Tiệm May ABC ▾]           │
+│ Ảnh đại diện: [▪] [Đổi ảnh]                                          │
+│                                                                       │
+│ Giá thuê/ngày:     [350.000____]đ                                    │
+│ Giá trị gốc:       [2.000.000__]đ   ← cơ sở tính cọc và bồi thường   │
+│ Tỷ lệ cọc:         [70]%            → Tiền cọc = 1.400.000đ          │
+│                                                                       │
+│ Mô tả ngắn: [Áo dài lụa tơ tằm thêu tay hoạ tiết sen_________]       │
+│ Mô tả chi tiết: [ Trình soạn thảo WYSIWYG ]                          │
+│                                                                       │
+│ ☑ Sản phẩm nổi bật     Trạng thái: (•) Hiển thị  ( ) Ẩn             │
+│ ─────────────────────────────────────────────────────────────────────│
+│ TAB BIẾN THỂ                                      [+ Thêm biến thể]  │
+│ SKU            Size  Màu       Tình trạng      Tồn kho   Thao tác    │
+│ AD-CT-DO-S     S     Đỏ Ruby   99% New         [ 5 ]     [Sửa][Xoá] │
+│ AD-CT-DO-M     M     Đỏ Ruby   99% New         [ 3 ]     [Sửa][Xoá] │
+│ AD-CT-DO-L     L     Đỏ Ruby   98% New         [ 0 ]     [Sửa][Xoá] │
+│ ⓘ Sửa tồn kho trực tiếp ở đây chỉ dùng khi kiểm kê. Biến động        │
+│   thường ngày phải đi qua phiếu nhập / xuất kho để truy vết được.    │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -1204,16 +1561,18 @@ Click một dòng → panel bên phải: ảnh, lịch sử thuê, nhật ký v�
 
 | Component | Dùng ở | Ghi chú |
 |---|---|---|
-| `<RentalDatePicker>` | S02, S03, S04, A04 | Range picker + tô màu ngày bận, chặn ngày hết |
-| `<AvailabilityBadge>` | S02, S03, A04 | "Còn 2/3 bộ" / "Hết đồ" |
-| `<VariantSelector>` | S03 | Swatch màu + size, disable theo availability |
-| `<PriceBreakdown>` | S03, S04, S05, S09 | Tách rõ thuê / cọc / phí |
-| `<HoldTimer>` | S04, S05 | Đếm ngược TTL giữ chỗ, hết giờ thì refresh giỏ |
-| `<OrderTimeline>` | S09, A03 | Thanh tiến trình trạng thái |
-| `<QrScanner>` | A03, A09, A04 | Dùng camera (`html5-qrcode`) hoặc đầu đọc barcode |
-| `<UnitStatusChip>` | A03, A08, A10 | Chip màu theo trạng thái cá thể |
-| `<ConditionForm>` | A09 | Chọn tình trạng + upload ảnh minh chứng |
-| `<RentalTimeline>` | A05 | Timeline lịch bận |
+| `<RentalDatePicker>` | S03, S04 | Range picker, chặn ngày quá khứ và quá 30 ngày |
+| `<StockBadge>` | S02, S03, S04, A08 | "Còn 3 bộ" / "Chỉ còn 1 bộ" / "Hết hàng" |
+| `<VariantSelector>` | S03 | Swatch màu + size, disable biến thể `stock_quantity = 0` |
+| `<PriceBreakdown>` | S03, S04, S05, S09 | Tách rõ tiền thuê / cọc / phí ship / giảm giá |
+| `<CouponInput>` | S04, S05 | Nhập mã, gọi `/coupons/validate`, hiện lý do từ chối |
+| `<OrderStatusStepper>` | S09, A03 | Thanh tiến trình 6 bước theo `order_status` |
+| `<OrderStatusChip>` | S08, A02 | Chip màu theo trạng thái đơn |
+| `<StarRating>` | S03, A10 | Hiển thị & nhập đánh giá 1–5 sao |
+| `<ReturnSettlementForm>` | A04 | Nhập tình trạng, tính phạt, chốt cọc hoàn |
+| `<StockReceiptForm>` | A08 | Lập phiếu nhập / xuất nhiều dòng |
+| `<DataTable>` | toàn bộ admin | Bảng có phân trang, lọc, sắp xếp |
+| `<RichTextEditor>` | A06, A12 | Soạn mô tả sản phẩm, bài viết, trang tĩnh |
 
 ---
 
@@ -1225,56 +1584,74 @@ Click một dòng → panel bên phải: ảnh, lịch sử thuê, nhật ký v�
 app/
 ├── Http/
 │   ├── Controllers/Api/V1/
-│   │   ├── Public/     ProductController, AvailabilityController, ReviewController
-│   │   ├── Customer/   CartController, OrderController, PaymentController, ProfileController
-│   │   ├── Admin/      ProductController, UnitController, OrderController,
-│   │   │               InspectionController, FeeController, RefundController,
-│   │   │               MaintenanceController, ReportController, SettingController
-│   │   └── Webhook/    VnpayController, MomoController
-│   ├── Requests/       CreateOrderRequest, AddCartItemRequest, ReturnOrderRequest...
-│   ├── Resources/      ProductResource, OrderResource, UnitResource...
-│   └── Middleware/     EnsureOrderOwner, LogAdminAction
+│   │   ├── Public/    ConfigController, MenuController, BannerController,
+│   │   │              CategoryController, BrandController, ProductController,
+│   │   │              PostController, PageController, ContactController
+│   │   ├── Auth/      RegisterController, LoginController, PasswordResetController
+│   │   ├── Customer/  ProfileController, CartQuoteController, OrderController,
+│   │   │              PaymentController, ReviewController
+│   │   ├── Admin/     ProductController, VariantController, ProductImageController,
+│   │   │              CategoryController, BrandController, StockReceiptController,
+│   │   │              OrderController, RentalReturnController, CouponController,
+│   │   │              ReviewController, ContactController, PostController,
+│   │   │              PageController, BannerController, MenuController,
+│   │   │              UserController, ConfigController, ReportController
+│   │   └── Webhook/   VnpayController
+│   ├── Requests/      RegisterRequest, CreateOrderRequest, CartQuoteRequest,
+│   │                  StoreProductRequest, StockReceiptRequest, RentalReturnRequest
+│   ├── Resources/     ProductResource, VariantResource, OrderResource,
+│   │                  OrderItemResource, RentalReturnResource, PostResource
+│   └── Middleware/    EnsureUserIsAdmin (alias role, dùng role:admin), EnsureOrderOwner
 │
-├── Services/                        ← nơi chứa nghiệp vụ, KHÔNG để trong controller
-│   ├── AvailabilityService.php      # BR-01 → BR-07
-│   ├── PricingService.php           # BR-10 → BR-13
-│   ├── CartService.php              # soft hold
-│   ├── OrderService.php             # tạo đơn, transaction, lock
-│   ├── OrderStateMachine.php        # §4.1
-│   ├── InspectionService.php        # biên bản kiểm tra
-│   ├── FeeCalculator.php            # BR-30 → BR-33
-│   ├── SettlementService.php        # BR-32 quyết toán cọc
-│   ├── RefundService.php
-│   ├── MaintenanceService.php
+├── Services/                          ← nghiệp vụ nằm ở đây, KHÔNG ở controller
+│   ├── PricingService.php             # BR-10 → BR-16: tính tiền thuê, cọc, tổng đơn
+│   ├── CouponService.php              # BR-20 → BR-23: kiểm tra & tăng lượt dùng
+│   ├── StockService.php               # BR-01 → BR-06: trừ / cộng kho an toàn
+│   ├── OrderService.php               # tạo đơn trong transaction
+│   ├── OrderStatusService.php         # §4.1 chuyển trạng thái hợp lệ
+│   ├── RentalReturnService.php        # UC-13: biên bản, phí phạt, hoàn cọc
+│   ├── StockReceiptService.php        # UC-15: phiếu nhập / xuất
+│   ├── ReportService.php              # doanh thu, top sản phẩm, tồn kho
 │   └── Payment/
-│       ├── PaymentGateway.php (interface)
-│       ├── VnpayGateway.php
-│       └── MomoGateway.php
+│       ├── VnpayService.php           # tạo URL thanh toán, verify SecureHash
+│       └── PaymentRecorder.php        # ghi payments, cập nhật payment_status
 │
-├── Models/         User, Category, Product, ProductVariant, RentalUnit, Booking,
-│                   Order, OrderItem, Payment, Refund, OrderFee, Inspection,
-│                   InspectionItem, MaintenanceTask, Shipment, Promotion, Review
+├── Models/       User, PasswordReset, Category, Brand, Product, ProductImage,
+│                 ProductVariant, Coupon, Order, OrderItem, RentalReturn, Payment,
+│                 StockReceipt, StockReceiptDetail, PostCategory, Post, Page,
+│                 Banner, Menu, Contact, SystemConfig, Review        (22 model)
 │
-├── Jobs/           ReleaseExpiredHolds, ExpireUnpaidOrders, MarkOverdueOrders,
-│                   SendReturnReminder, SendPickupReminder
-├── Events/         OrderConfirmed, OrderHandedOver, OrderReturned, UnitStatusChanged
-├── Listeners/      NotifyCustomer, UpdateUnitStatus, WriteAuditLog
-├── Notifications/  OrderConfirmedNotification, ReturnReminderNotification...
-├── Policies/       OrderPolicy, ProductPolicy, FeePolicy
-└── Enums/          OrderStatus, UnitStatus, BookingStatus, FeeType, PaymentStatus
+├── Enums/        UserRole, UserStatus, ContentStatus, PostStatus, CouponStatus,
+│                 DeliveryType, PaymentMethod, PaymentStatus, PaymentType,
+│                 TransactionStatus, OrderStatus, ReceiptType, ContactStatus
+│                 + Concerns/HasValues (trait values() và options())   (13 enum)
+├── Jobs/         ExpireUnpaidOrders, SendPickupReminder, SendReturnReminder,
+│                 FlagOverdueOrders, CleanExpiredPasswordResets
+├── Mail/         OrderConfirmedMail, ReturnReminderMail, ResetPasswordMail
+├── Exceptions/   BusinessException (lớp cha), OutOfStockException,
+│                 InvalidCouponException, InvalidStatusTransitionException
+└── Traits/       ApiResponse (ok / created / noContent / fail)
 
 database/
-├── migrations/     (theo thứ tự: categories → products → variants → units →
-│                    orders → order_items → bookings → payments → ...)
-├── seeders/        RoleSeeder, CategorySeeder, DemoProductSeeder, DemoOrderSeeder
+├── migrations/   Thứ tự: users → password_resets → categories → brands →
+│                 products → product_images → product_variants → coupons →
+│                 orders → order_items → rental_returns → payments →
+│                 stock_receipts → stock_receipt_details → post_categories →
+│                 posts → pages → banners → menus → contacts →
+│                 system_configs → reviews
+├── seeders/      SystemConfigSeeder (17 khoá cấu hình), UserSeeder (1 admin),
+│                 CatalogSeeder (danh mục + thương hiệu + sản phẩm + biến thể
+│                 + ảnh), CouponSeeder, ContentSeeder (menu + banner + trang
+│                 tĩnh + chủ đề + bài viết)
 └── factories/
 
 tests/
-├── Unit/    AvailabilityServiceTest, PricingServiceTest, FeeCalculatorTest
-└── Feature/ CheckoutTest, DoubleBookingTest, ReturnAndSettleTest, VnpayIpnTest
+├── Unit/     PricingServiceTest, CouponServiceTest, RentalReturnServiceTest
+└── Feature/  CheckoutTest, StockRaceConditionTest, OrderStatusFlowTest,
+             VnpayIpnTest, ReturnSettlementTest
 ```
 
-> **Test nên viết trước tiên:** `DoubleBookingTest` — bắn 2 request checkout đồng thời cùng 1 cá thể, khẳng định chỉ 1 đơn thành công. Đây là bằng chứng thuyết phục nhất cho phần "xử lý tranh chấp tồn kho".
+> **Test nên viết trước tiên:** `StockRaceConditionTest` — bắn 2 request "giao đồ" đồng thời trên cùng một biến thể chỉ còn 1 bộ, khẳng định chỉ 1 request thành công và `stock_quantity` không bao giờ âm. Đây là bằng chứng thuyết phục nhất cho phần xử lý tranh chấp tồn kho.
 
 ### 9.2. Frontend — Next.js
 
@@ -1282,27 +1659,31 @@ tests/
 src/
 ├── app/                    (đã liệt kê ở §8.1)
 ├── components/
-│   ├── ui/                 button, input, dialog, calendar (shadcn/ui)
-│   ├── product/            ProductCard, VariantSelector, AvailabilityBadge, ImageGallery
-│   ├── rental/             RentalDatePicker, PriceBreakdown, HoldTimer, OrderTimeline
-│   └── admin/              DataTable, UnitStatusChip, QrScanner, ConditionForm,
-│                           RentalTimeline, KanbanBoard
-├── features/               (theo domain, mỗi feature gồm api + hooks + types)
-│   ├── catalog/  cart/  orders/  units/  inspections/  reports/
+│   ├── ui/                 button, input, dialog, calendar, table (shadcn/ui)
+│   ├── layout/             Header, Footer, MobileNav (đọc từ /menus, /configs)
+│   ├── product/            ProductCard, VariantSelector, StockBadge,
+│   │                       ImageGallery, StarRating
+│   ├── rental/             RentalDatePicker, PriceBreakdown, CouponInput,
+│   │                       OrderStatusStepper, OrderStatusChip
+│   └── admin/              DataTable, RichTextEditor, ReturnSettlementForm,
+│                           StockReceiptForm, ImageUploader
+├── features/               (mỗi feature gồm api + hooks + types)
+│   ├── catalog/  cart/  orders/  auth/  stock/  content/  reports/
 ├── lib/
-│   ├── api-client.ts       axios/fetch wrapper, interceptor refresh token
-│   ├── date.ts             tính số ngày thuê, format, timezone Asia/Ho_Chi_Minh
+│   ├── api-client.ts       fetch wrapper, gắn Bearer token, xử lý lỗi chuẩn
+│   ├── date.ts             tính rental_days, format, timezone Asia/Ho_Chi_Minh
 │   ├── money.ts            format VNĐ, tránh sai số làm tròn
-│   └── validators.ts       zod schema dùng chung với form
-├── store/                  Zustand: cart, auth, ui
-└── types/                  types sinh từ API (khuyến nghị dùng openapi-typescript)
+│   └── validators.ts       zod schema dùng chung cho form
+├── store/                  Zustand: cart (localStorage), auth, ui
+└── types/                  types khớp với API Resource của Laravel
 ```
 
 **Gợi ý kỹ thuật frontend:**
-- **TanStack Query** cho mọi call API — cache availability theo key `[variantId, from, to]`, tự invalidate khi đổi ngày.
-- Trang catalog & chi tiết dùng **SSR/ISR** (`revalidate: 300`) cho SEO; phần availability gọi client-side để luôn tươi.
-- `HoldTimer` hết giờ → invalidate query giỏ, hiện dialog "Giỏ hàng đã hết hạn giữ chỗ".
-- Chuẩn hoá múi giờ: backend lưu UTC, frontend hiển thị `Asia/Ho_Chi_Minh`. Ngày thuê lưu dạng `date` (không giờ) để tránh lệch ngày.
+- **TanStack Query** cho mọi call API; cache tồn kho theo key `['variants', productSlug]`, invalidate sau khi đặt đơn.
+- Trang chủ, danh sách và chi tiết sản phẩm dùng **SSR/ISR** (`revalidate: 300`) cho SEO; phần `stock_quantity` gọi client-side để luôn tươi.
+- Giỏ thuê lưu `localStorage` nhưng **luôn** gọi `POST /cart/quote` trước khi hiển thị số tiền — backend là nguồn sự thật về giá.
+- Chuẩn hoá múi giờ: backend lưu UTC cho `TIMESTAMP`, nhưng `rent_start_date` / `rent_end_date` là kiểu `DATE` thuần (không giờ) để tránh lệch ngày; frontend hiển thị `Asia/Ho_Chi_Minh`.
+- Trang admin dùng CSR hoàn toàn, bảo vệ bằng middleware kiểm tra `role === 'admin'` từ `/me`.
 
 ---
 
@@ -1310,72 +1691,181 @@ src/
 
 | Giai đoạn | Nội dung | Ước lượng |
 |---|---|---|
-| **0. Chuẩn bị** | Khởi tạo repo, Docker (nginx + php-fpm + mysql + redis), CI cơ bản, thiết kế DB, seed dữ liệu mẫu | 1 tuần |
-| **1. Catalog** | Danh mục, sản phẩm, biến thể, cá thể, upload ảnh; trang chủ + danh sách + chi tiết | 2 tuần |
-| **2. Availability ⭐** | `AvailabilityService`, bảng `bookings`, API lịch, date picker, test double-booking | 1.5 tuần |
-| **3. Giỏ & Đặt đơn** | Soft hold, `PricingService`, checkout, tạo đơn, quản lý đơn phía khách | 2 tuần |
-| **4. Thanh toán** | VNPay sandbox, IPN idempotent, ghi nhận tiền mặt, huỷ & hoàn tiền | 1.5 tuần |
-| **5. Vận hành ⭐** | Admin: dashboard, xử lý đơn, gán cá thể, bàn giao QR, lịch tổng | 2 tuần |
-| **6. Trả đồ & quyết toán ⭐** | Quầy nhận trả, biên bản kiểm tra, `FeeCalculator`, quyết toán cọc, duyệt Manager | 2 tuần |
-| **7. Hậu thuê** | Kanban giặt ủi/sửa, vòng đời cá thể, nhật ký | 1 tuần |
-| **8. Bổ trợ** | Khuyến mãi, đánh giá, thông báo, báo cáo | 1.5 tuần |
-| **9. Hoàn thiện** | Test, tối ưu, tài liệu, deploy, chuẩn bị demo | 1.5 tuần |
+| **0. Chuẩn bị** | Khởi tạo repo, môi trường, 22 migration, seeder dữ liệu mẫu, Sanctum + middleware `role` | 1 tuần |
+| **1. Auth & Tài khoản** | Đăng ký, đăng nhập, quên mật khẩu qua email, hồ sơ, đổi mật khẩu | 1 tuần |
+| **2. Catalog** | Danh mục, thương hiệu, sản phẩm, biến thể, ảnh; trang chủ + danh sách + chi tiết | 2 tuần |
+| **3. Giỏ & Đặt đơn ⭐** | `PricingService`, `CouponService`, `/cart/quote`, checkout, tạo đơn, đơn của tôi | 2 tuần |
+| **4. Thanh toán** | VNPay sandbox, IPN idempotent, ghi nhận tiền mặt, huỷ đơn & hoàn tiền | 1,5 tuần |
+| **5. Vận hành đơn ⭐** | Admin: dashboard, danh sách & chi tiết đơn, chuyển trạng thái, `StockService` trừ kho | 2 tuần |
+| **6. Trả đồ & quyết toán ⭐** | Quầy nhận trả, `rental_returns`, phí phạt, hoàn cọc, cộng lại kho | 1,5 tuần |
+| **7. Kho** | Phiếu nhập / xuất, báo cáo tồn kho, cảnh báo sắp hết hàng | 1 tuần |
+| **8. Nội dung & Tương tác** | Bài viết, trang tĩnh, banner, menu, liên hệ, đánh giá, cấu hình hệ thống | 1,5 tuần |
+| **9. Báo cáo & Hoàn thiện** | Báo cáo doanh thu / top sản phẩm, test, tối ưu, deploy, chuẩn bị demo | 1,5 tuần |
 
-**Tổng ≈ 16 tuần cho một mình.** Nếu thời gian eo hẹp, cắt giai đoạn 7 và 8 (giữ lại đánh giá đơn giản) — vẫn còn nguyên phần lõi để bảo vệ.
+**Tổng ≈ 15 tuần.** Nếu thời gian eo hẹp, cắt bớt giai đoạn 7 và 8 (giữ đánh giá + cấu hình cơ bản) — phần lõi để bảo vệ vẫn còn nguyên.
 
 ### 10.1. Ba điểm quyết định chất lượng đồ án
 
-1. **Availability engine + chống đặt trùng.** Đây là phần "khó thật" của bài toán. Chuẩn bị sẵn một test tự động chạy trước hội đồng: 2 request song song, 1 thành công, 1 nhận lỗi 409.
-2. **Vòng đời cá thể + buffer giặt ủi.** Nhiều đồ án cho thuê chỉ làm `quantity` giống bán hàng — làm tới cấp cá thể là điểm phân biệt rõ nhất.
-3. **Quyết toán cọc có kiểm soát nội bộ.** Có biên bản 2 chiều, ảnh minh chứng, biên độ quyền hạn Staff/Manager, audit log. Cho thấy hiểu nghiệp vụ chứ không chỉ biết code CRUD.
+1. **Vòng đời đơn thuê 7 trạng thái gắn với tồn kho.** Không phải CRUD đơn hàng thông thường: mỗi lần chuyển trạng thái là một lần tác động kho có kiểm soát, đi qua đúng một service, bọc transaction (§4.1, BR-03, BR-04).
+2. **Tiền cọc và quyết toán.** Tính cọc theo `original_value × deposit_rate_percent`, giữ suốt kỳ thuê, đối trừ phí phạt khi trả, hoàn phần còn lại và ghi nhận bằng `payments` loại `deposit_refund`. Đây là phần nghiệp vụ mà hệ thống bán hàng không có (BR-11, BR-30 → BR-32).
+3. **Mọi biến động kho đều có chứng từ.** Đồ hỏng không bị "xoá ngầm" khỏi tồn kho mà phải qua phiếu `export` có lý do — cho thấy hiểu về kiểm soát nội bộ chứ không chỉ biết code CRUD (BR-33).
 
 ### 10.2. Câu hỏi hội đồng hay hỏi — chuẩn bị trước
 
 | Câu hỏi | Trả lời ngắn gọn |
 |---|---|
-| "Hai người cùng đặt một bộ đồ thì sao?" | Transaction + `lockForUpdate` trên `rental_units`, kiểm tra lại availability trong transaction, người sau nhận lỗi 409 (§BR-04) |
-| "Sao không dùng cột số lượng tồn?" | Vì đồ quay vòng — tồn kho là lịch bận theo thời gian, không phải con số. Cùng một bộ đồ vừa "hết" ngày 12/10 vừa "còn" ngày 20/10 (§BR-01) |
-| "Đồ vừa trả có cho thuê ngay ngày hôm sau được không?" | Không — có `clean_buffer_days` theo danh mục, cộng vào `busy_to` (§BR-02) |
-| "Khách làm hỏng đồ thì xử lý ra sao?" | Biên bản kiểm tra 2 chiều có ảnh, bảng phí cấu hình, quyết toán trên tiền cọc, vượt hạn mức thì Manager duyệt (§BR-31→33) |
-| "Vì sao tách Next.js và Laravel?" | Next.js lo SEO + trải nghiệm chọn ngày; Laravel lo nghiệp vụ và transaction. Tách ra thì mỗi bên scale và test độc lập |
-| "Bảo mật thanh toán thế nào?" | Chỉ tin IPN đã verify chữ ký, xử lý idempotent theo `gateway_txn_id`, không bao giờ cập nhật đơn từ return URL |
+| "Hai người cùng thuê bộ đồ cuối cùng thì sao?" | Trừ kho bọc trong transaction + `lockForUpdate()` trên `product_variants`, kiểm tra lại `stock_quantity` trong transaction, người sau nhận lỗi 409. Có `CHECK (stock_quantity >= 0)` làm chốt chặn cuối (BR-04) |
+| "Vì sao trừ kho lúc giao đồ chứ không phải lúc đặt đơn?" | Đơn `pending` có thể không bao giờ được thanh toán. Trừ sớm sẽ khoá kho oan, khách thật không thuê được. Đổi lại phải kiểm tra tồn kho **lần nữa** ngay trước khi trừ (BR-03) |
+| "Tiền cọc tính thế nào? Có nhân theo số ngày không?" | `original_value × deposit_rate_percent / 100`, **không** nhân số ngày — cọc là khoản giữ theo món đồ, không phải phí sử dụng (BR-11) |
+| "Khách trả trễ hoặc làm hỏng đồ thì xử lý ra sao?" | Lập `rental_returns`: phí trễ theo công thức có trần, cộng phí hư hỏng theo bảng, ghi rõ `penalty_reason`, đối trừ vào cọc; thiếu thì ghi công nợ (BR-30 → BR-32) |
+| "Đồ hỏng nặng thì biến mất khỏi kho bằng cách nào?" | Không cộng lại `stock_quantity` khi hoàn tất đơn, đồng thời lập phiếu `export` có lý do — kiểm kê lúc nào cũng khớp (BR-33) |
+| "Tại sao không có bảng roles?" | Hệ thống chỉ có 2 vai trò cố định, kiểm tra trực tiếp `users.role` tại middleware nhanh hơn và ít bảng hơn; nếu sau này cần phân quyền chi tiết mới thêm bảng trung gian |
+| "Bảo mật thanh toán thế nào?" | Chỉ tin **IPN** đã verify `vnp_SecureHash`, xử lý idempotent theo `transaction_id` (có UNIQUE index), không bao giờ cập nhật đơn từ return URL (BR-18) |
+| "Số tiền do frontend gửi lên có tin được không?" | Không. Frontend chỉ gửi `product_variant_id`, số lượng và ngày thuê; toàn bộ tiền do backend tính lại từ `products` và `coupons` (§7.2) |
+| "Hệ thống có cho đặt trước ngày trong tương lai khi đồ đang có người thuê không?" | Không — bản 2.0 dùng tồn kho theo số lượng, chỉ đặt được khi kho còn hàng. Đây là đánh đổi có chủ đích để giữ mô hình đơn giản; nếu mở rộng sẽ cần bảng khoá lịch riêng |
 
 ---
 
-## PHỤ LỤC A — Giá trị cấu hình mặc định (bảng `settings`)
+## 11. TÌNH TRẠNG TRIỂN KHAI
 
-| Key | Mặc định | Ý nghĩa |
+Cập nhật 15/09/2026. Mục này ghi lại chính xác phần nào đã code xong và đã kiểm chứng, để người đọc tài liệu không nhầm giữa thiết kế và hiện trạng.
+
+### 11.1. Tiến độ theo lô
+
+| Lô | Nội dung | Trạng thái |
+|---|---|:-:|
+| **0** | Nền tảng Laravel: Sanctum, routing `api/v1`, 13 Enum, middleware `role`, 4 Exception, trait `ApiResponse`, cấu hình `.env` | ✅ Xong |
+| **1** | 22 migration, 22 Model, 5 Seeder, dữ liệu mẫu | ✅ Xong |
+| 2 | Auth: đăng ký, đăng nhập, quên mật khẩu, hồ sơ | ☐ Chưa |
+| 3 | Catalog public API | ☐ Chưa |
+| 4 | `PricingService`, `CouponService`, `/cart/quote` | ☐ Chưa |
+| 5 | Đặt đơn, `StockService`, `OrderStatusService` | ☐ Chưa |
+| 6 | VNPay + `payments` | ☐ Chưa |
+| 7 | `rental_returns`, quyết toán cọc | ☐ Chưa |
+| 8 | Kho, nội dung, đánh giá, liên hệ, cấu hình | ☐ Chưa |
+| 9 | Báo cáo, hoàn thiện, deploy | ☐ Chưa |
+
+### 11.2. Những gì đã kiểm chứng được
+
+Sau Lô 1, schema và tầng Model đã được kiểm tra tự động, không phải kiểm bằng mắt:
+
+| Hạng mục | Kết quả |
+|---|---|
+| Đối chiếu từng bảng, từng cột với `thltweb_huy_tuyet.sql` | 22/22 bảng khớp tuyệt đối |
+| Model, cast Enum, quan hệ, accessor, scope | 30/30 khẳng định đạt |
+| Luồng đặt thuê → thanh toán → trả đồ → xuất kho (chạy trong transaction rồi rollback) | 43/43 khẳng định đạt |
+
+Các ràng buộc đã chứng minh **chặn thật** chứ không chỉ khai báo:
+
+- `CHECK (stock_quantity >= 0)` — chặn `UPDATE` đưa tồn kho xuống âm (BR-04).
+- `UNIQUE (payments.transaction_id)` — chặn IPN VNPay gọi lại lần 2 ghi nhận trùng giao dịch (BR-18); phiếu tiền mặt có `transaction_id = NULL` vẫn lưu được nhiều bản ghi.
+- `UNIQUE (rental_returns.order_id)` — chặn lập biên bản trả đồ lần 2 cho cùng một đơn (BR-35).
+- `UNIQUE (product_variants.product_id, size, color)` và `UNIQUE (sku)` — chặn trùng biến thể.
+- `CHECK (rating BETWEEN 1 AND 5)` — chặn đánh giá ngoài thang điểm (BR-50).
+- `ON DELETE RESTRICT` — chặn xoá tài khoản đang có đơn thuê và biến thể đã từng được thuê.
+
+Công thức tính tiền đã chạy đúng trên dữ liệu thật: thuê 350.000đ/ngày × 3 ngày = 1.050.000đ; cọc 2.000.000đ × 70% = 1.400.000đ; phạt trễ 2 ngày × 1,5 = 1.050.000đ; cọc hoàn lại 200.000đ.
+
+### 11.3. Dữ liệu mẫu sau khi seed
+
+| Bảng | Số dòng | Ghi chú |
+|---|:-:|---|
+| `users` | 1 | Chỉ một tài khoản quản trị — xem §11.4 |
+| `system_configs` | 17 | Đủ 17 khoá ở Phụ lục A |
+| `categories` | 5 | 4 danh mục gốc + 1 danh mục con (Áo Dài Cưới) |
+| `brands` | 3 | |
+| `products` | 4 | Áo dài, váy dạ hội, vest, cosplay |
+| `product_variants` | 10 | Có sẵn biến thể tồn 0 và tồn 1 để thử cảnh báo hết hàng |
+| `product_images` | 12 | |
+| `coupons` | 5 | Phủ đủ 4 nhánh từ chối của BR-20: hết hạn, hết lượt, đang tắt, chưa đủ đơn tối thiểu |
+| `post_categories` / `posts` | 3 / 3 | |
+| `pages` | 3 | Giới thiệu, Chính sách thuê & hoàn cọc, Hướng dẫn chọn size |
+| `banners` | 3 | |
+| `menus` | 11 | Gồm 3 menu con để thử quan hệ cha–con |
+| 8 bảng giao dịch | 0 | `orders`, `order_items`, `rental_returns`, `payments`, `stock_receipts`, `stock_receipt_details`, `contacts`, `reviews` — phát sinh khi chạy thật |
+
+### 11.4. Tài khoản quản trị
+
+| | |
+|---|---|
+| Email | `admin123@gmail.com` |
+| Mật khẩu | `Admin123@` |
+| Vai trò | `admin` |
+
+Mật khẩu lưu dạng Bcrypt (cast `hashed` của Laravel), không lưu văn bản thường.
+
+Hệ thống **không seed sẵn tài khoản `member`** — tài khoản khách hàng tạo qua API đăng ký ở Lô 2 để đi đúng luồng thật.
+
+### 11.5. Phần cố ý chưa làm
+
+- **Factory** (`database/factories/`): chưa viết. Sẽ tạo ở Lô 4 khi có `PricingServiceTest` đầu tiên, lúc đó mới biết factory cần hình dạng gì. Viết trước là đoán mò.
+- **Service layer** (`app/Services/`): thư mục chưa tồn tại. Tạo từ Lô 4.
+- **Controller**: chưa có controller nghiệp vụ nào. `routes/api.php` mới là khung có sẵn chỗ, các route thật đang để dạng chú thích kèm số lô tương ứng.
+
+---
+
+## PHỤ LỤC A — Cấu hình mặc định (bảng `system_configs`)
+
+| `config_key` | Giá trị mặc định | `description` |
 |---|---|---|
-| `hold_ttl_minutes` | 15 | TTL giữ chỗ ở giỏ |
-| `checkout_ttl_minutes` | 30 | Thời gian giữ đơn chờ thanh toán |
-| `default_clean_buffer_days` | 1 | Buffer giặt ủi mặc định |
-| `prep_buffer_days` | 0 | Buffer chuẩn bị trước ngày nhận |
-| `min_lead_days` / `max_advance_days` | 0 / 180 | Cửa sổ đặt trước |
-| `min_rental_days` / `max_rental_days` | 1 / 30 | Giới hạn thời gian thuê |
-| `deposit_rate_default` | 0.6 | Cọc mặc định = 60% giá trị đồ |
-| `prepay_rental_rate` | 0.3 | % tiền thuê trả trước cùng cọc |
-| `full_payment_discount` | 0.02 | Giảm khi trả đủ |
-| `late_fee_rate` | 1.5 | Hệ số phí trễ / ngày |
-| `late_fee_grace_hours` | 3 | Ân hạn |
-| `late_fee_cap_multiplier` | 2 | Trần phí trễ = 2× cọc |
-| `staff_fee_limit` | 500.000 | Hạn mức Staff tự quyết phí |
-| `staff_discount_limit_rate` | 0.2 | Staff giảm tối đa 20% phí gợi ý |
-| `refund_auto_limit` | 2.000.000 | Trên mức này cần Manager duyệt |
+| `site_name` | Tiệm Thuê Đồ Xinh | Tên cửa hàng hiển thị trên header và email |
+| `site_logo` | `/uploads/logo.png` | Đường dẫn logo |
+| `site_phone` | 0901234567 | Hotline hiển thị ở header / footer |
+| `site_email` | lienhe@thuedoxinh.vn | Email liên hệ chính thức |
+| `site_address` | 123 Nguyễn Văn Cừ, Q5, TP.HCM | Địa chỉ cửa hàng (dùng cho `store_pickup`) |
+| `site_facebook` | (trống) | Link fanpage |
+| `shipping_fee_default` | 50000 | Phí giao hàng tận nơi (đ) |
+| `free_shipping_threshold` | 2000000 | Miễn phí giao khi tiền thuê vượt mức này (đ) |
+| `deposit_rate_default` | 70 | % cọc mặc định khi tạo sản phẩm mới |
+| `late_fee_rate` | 1.5 | Hệ số phí trễ mỗi ngày (BR-30) |
+| `min_rental_days` | 1 | Số ngày thuê tối thiểu |
+| `max_rental_days` | 30 | Số ngày thuê tối đa |
+| `max_advance_days` | 180 | Đặt trước xa nhất bao nhiêu ngày |
+| `unpaid_order_timeout_minutes` | 30 | Thời gian giữ đơn VNPay chưa thanh toán |
+| `low_stock_threshold` | 2 | Ngưỡng cảnh báo sắp hết hàng |
+| `password_reset_expire_minutes` | 60 | Hạn dùng token quên mật khẩu |
+| `special_cleaning_fee` | 100000 | Phí giặt đặc biệt gợi ý (đ) |
+
+---
 
 ## PHỤ LỤC B — Bảng thuật ngữ
 
 | Thuật ngữ | Giải thích |
 |---|---|
-| **Variant** (biến thể) | Tổ hợp size × màu của một sản phẩm |
-| **Rental unit** (cá thể) | Một món đồ vật lý cụ thể, có mã QR riêng |
-| **Booking** | Bản ghi khoá lịch một cá thể/biến thể trong khoảng ngày |
-| **Buffer** | Khoảng đệm trước/sau lượt thuê để giặt ủi, kiểm tra |
-| **Soft hold** | Giữ chỗ tạm có thời hạn khi khách bỏ vào giỏ |
-| **Late binding** | Chỉ gán cá thể cụ thể khi soạn đồ, không gán lúc đặt |
-| **Settlement** (quyết toán) | Đối trừ cọc với phí phát sinh khi kết thúc đơn |
-| **Utilization** (tỷ lệ khai thác) | Số ngày cho thuê được / tổng số ngày trong kỳ |
-| **IPN** | Instant Payment Notification — webhook từ cổng thanh toán |
+| **Variant** (biến thể) | Tổ hợp size × màu của một sản phẩm, có SKU và tồn kho riêng |
+| **SKU** | Mã quản lý kho của một biến thể (VD: `AD-CT-DO-M`) |
+| **Tiền cọc** (deposit) | Khoản giữ tạm bằng `original_value × deposit_rate_percent`, hoàn lại sau khi trả đồ nguyên vẹn |
+| **Quyết toán cọc** (settlement) | Đối trừ tiền cọc với phí phạt khi kết thúc đơn thuê |
+| **`penalty_fee`** | Tổng phí phạt: trễ hạn + hư hỏng + mất, gộp vào một cột |
+| **Phiếu nhập kho** (`import`) | Chứng từ tăng tồn kho khi mua đồ mới |
+| **Phiếu xuất huỷ** (`export`) | Chứng từ giảm tồn kho khi loại bỏ đồ hỏng / mất |
+| **`store_pickup`** | Khách đến cửa hàng nhận đồ trực tiếp, không mất phí ship |
+| **`delivery`** | Giao đồ tận nơi, bắt buộc có `shipping_address` |
+| **IPN** | Instant Payment Notification — webhook từ VNPay, nguồn sự thật để cập nhật đơn |
+| **Idempotent** | Gọi lại nhiều lần vẫn cho cùng kết quả, không tạo giao dịch trùng |
+| **Snapshot giá** | Lưu giá tại thời điểm đặt vào `order_items` để đơn cũ bất biến |
 
 ---
 
-*Tài liệu đặc tả — Dự án "Cho thuê đồ (trang phục)" · Lê Võ Nhật Pin · 09/2026*
+## PHỤ LỤC C — Đối chiếu với yêu cầu môn học
+
+| Mã yêu cầu | Nội dung | Đáp ứng bởi |
+|---|---|---|
+| FUNC-AUTH | Đăng ký, đăng nhập, quên mật khẩu, phân quyền | `users.role`, `password_resets`, §7.1, §7.2 |
+| FUNC-CATALOG | Danh mục, thương hiệu, sản phẩm, biến thể, ảnh | Bảng 3–7, §7.1, §7.4 |
+| FUNC-ORDER-01 | Giỏ hàng & đặt đơn | `orders`, `order_items`, UC-06 |
+| FUNC-ORDER-02 | Áp mã khuyến mãi khi đặt đơn | `coupons`, BR-20 → BR-23 |
+| FUNC-PAYMENT | Thanh toán tiền mặt & online | `payments`, VNPay IPN, BR-17 → BR-19 |
+| FUNC-ADM-ORDER | Quản trị đơn hàng theo trạng thái | §4.1, A02, A03 |
+| FUNC-ADM-PROMO | Quản trị khuyến mãi | `coupons`, A09 |
+| FUNC-ADM-STOCK | Quản lý nhập / xuất kho | `stock_receipts`, `stock_receipt_details`, UC-15, A08 |
+| FUNC-CONTENT | Bài viết, trang tĩnh, banner, menu | Bảng 15–19, A12 |
+| FUNC-CONTACT | Liên hệ & phản hồi khách hàng | `contacts`, A11 |
+| FUNC-REVIEW | Đánh giá sản phẩm | `reviews`, BR-50, BR-51 |
+| FUNC-CONFIG | Cấu hình website động | `system_configs`, A15, Phụ lục A |
+| FUNC-REPORT | Báo cáo doanh thu, tồn kho | §7.4 Báo cáo, A14, BR-15 |
+| *Đặc thù đề tài* | Thuê theo ngày, tiền cọc, trả đồ, phí phạt | `order_items` (ngày thuê), `rental_returns`, BR-10 → BR-16, BR-30 → BR-35 |
+
+---
+
+*Tài liệu đặc tả v2.0 — Dự án "Website cho thuê trang phục" · Thực hành Lập trình Web · 15/09/2026*
