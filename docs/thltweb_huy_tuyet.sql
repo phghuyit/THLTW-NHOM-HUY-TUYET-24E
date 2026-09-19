@@ -21,11 +21,10 @@ CREATE TABLE
     );
 
 CREATE TABLE
-    `password_resets` (
-        `email` VARCHAR(100) NOT NULL,
+    `password_reset_tokens` (
+        `email` VARCHAR(100) PRIMARY KEY,
         `token` VARCHAR(255) NOT NULL,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX `idx_email` (`email`)
+        `created_at` TIMESTAMP NULL
     );
 
 CREATE TABLE
@@ -86,16 +85,14 @@ CREATE TABLE
     );
 
 CREATE TABLE
-    `product_variants` (
+    `product_sizes` (
         `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
         `product_id` BIGINT NOT NULL,
-        `sku` VARCHAR(50) NOT NULL UNIQUE,
-        `size` VARCHAR(20) NOT NULL,
-        `color` VARCHAR(50) NOT NULL,
-        `condition_note` VARCHAR(100) DEFAULT '99% New',
+        `size` ENUM ('XS', 'S', 'M', 'L', 'XL', '2XL', 'FreeSize') NOT NULL DEFAULT 'FreeSize',
         `stock_quantity` INT NOT NULL DEFAULT 0,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY `unique_product_size` (`product_id`, `size`),
         FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
     );
 
@@ -153,7 +150,7 @@ CREATE TABLE
     `order_items` (
         `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
         `order_id` BIGINT NOT NULL,
-        `product_variant_id` BIGINT NOT NULL,
+        `product_size_id` BIGINT NOT NULL,
         `quantity` INT NOT NULL DEFAULT 1,
         `rent_start_date` DATE NOT NULL,
         `rent_end_date` DATE NOT NULL,
@@ -163,7 +160,7 @@ CREATE TABLE
         `total_item_rental` DECIMAL(12, 2) NOT NULL,
         `total_item_deposit` DECIMAL(12, 2) NOT NULL,
         FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
-        FOREIGN KEY (`product_variant_id`) REFERENCES `product_variants` (`id`) ON DELETE RESTRICT
+        FOREIGN KEY (`product_size_id`) REFERENCES `product_sizes` (`id`) ON DELETE RESTRICT
     );
 
 CREATE TABLE
@@ -210,11 +207,11 @@ CREATE TABLE
     `stock_receipt_details` (
         `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
         `receipt_id` BIGINT NOT NULL,
-        `product_variant_id` BIGINT NOT NULL,
+        `product_size_id` BIGINT NOT NULL,
         `quantity` INT NOT NULL,
         `unit_price` DECIMAL(12, 2) DEFAULT 0.00,
         FOREIGN KEY (`receipt_id`) REFERENCES `stock_receipts` (`id`) ON DELETE CASCADE,
-        FOREIGN KEY (`product_variant_id`) REFERENCES `product_variants` (`id`) ON DELETE RESTRICT
+        FOREIGN KEY (`product_size_id`) REFERENCES `product_sizes` (`id`) ON DELETE RESTRICT
     );
 
 CREATE TABLE
@@ -287,14 +284,6 @@ CREATE TABLE
         `admin_reply` TEXT NULL,
         `status` ENUM ('pending', 'replied') DEFAULT 'pending',
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-CREATE TABLE
-    `system_configs` (
-        `id` INT AUTO_INCREMENT PRIMARY KEY,
-        `config_key` VARCHAR(50) NOT NULL UNIQUE,
-        `config_value` TEXT NULL,
-        `description` VARCHAR(255) NULL
     );
 
 CREATE TABLE
