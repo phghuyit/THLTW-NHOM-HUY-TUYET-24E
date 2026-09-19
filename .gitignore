@@ -81,3 +81,10 @@ Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 *.cache
+.antigravity/
+.gemini/
+.agent/
+.agents/
+.agy/
+
+/giaithich/
