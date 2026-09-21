@@ -6,26 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('categories', function (Blueprint $table) {
-            $table->id();
-            $table->string('name',100);
-            $table->string('slug',120)->unique();
-            $table->foreignId('parent_id')->nullable()->constrained('categories')->nullOnDelete();
+            $table->increments('id');
+            $table->string('name', 100);
+            $table->string('slug', 120)->unique();
+            $table->unsignedInteger('parent_id')->nullable();
             $table->text('description')->nullable();
-            $table->string('image',255)->nullable();
-            $table->enum('status',['active','hidden'])->default('active');
+            $table->string('image', 255)->nullable();
+            $table->enum('status', ['active', 'hidden'])->default('active');
             $table->timestamps();
+
+            $table->foreign('parent_id')->references('id')->on('categories')->nullOnDelete();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('categories');
