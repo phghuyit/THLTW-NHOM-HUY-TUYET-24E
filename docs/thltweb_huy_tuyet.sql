@@ -130,6 +130,7 @@ CREATE TABLE
         `grand_total` DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
         `refunded_deposit` DECIMAL(12, 2) DEFAULT 0.00,
         `payment_method` ENUM ('cash', 'vnpay') DEFAULT 'cash',
+		`id_card_status` ENUM('none', 'held') DEFAULT 'none',
         `payment_status` ENUM ('unpaid', 'partially_paid', 'paid', 'refunded') DEFAULT 'unpaid',
         `order_status` ENUM (
             'pending',
