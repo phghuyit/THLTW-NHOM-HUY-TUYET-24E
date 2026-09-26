@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Override;
+
 
 class StoreProductRequest extends FormRequest
 {
@@ -27,18 +27,25 @@ class StoreProductRequest extends FormRequest
         return [
             //
             'category_id' => 'required|integer|exists:categories,id',
-            'brand_id' => 'nullable|int|exists:brands,id',
+            'brand_id' => 'nullable|integer|exists:brands,id',
             'name' => 'required|string|max:256',
-            'slug' => ['required', Rule::unique('products'), 'max:221'],
-            'thumbnail' => 'required|string|max:256',
+            'thumbnail' => 'required|string|max:2048',
             'short_description' => 'nullable|string|max:500',
             'description' => 'nullable|string',
             'rental_price_per_day' => 'required|numeric|min:0',
             'deposit_rate_percent' => 'required|numeric|min:0',
-            'original_value' => 'required|decimal:2',
+            'original_value' => 'required|numeric|min:0',
             'is_featured' => 'boolean',
-            'view_count' => 'int',
-            'status' => [Rule::in('active', 'hidden')]
+            'status' => [Rule::in('active', 'hidden')],
+            'sizes' => 'required|array|min:1',
+            'sizes.*.size' => [
+                'required',
+                'distinct',
+                Rule::in('S', 'M', 'L', 'XL', '2XL', 'FreeSize'),
+            ],
+            'sizes.*.stock_quantity' => 'required|integer|min:0',
+            'images' => 'nullable|array|min:1',
+            'images.*.image_url' => 'required|string|max:2048',
         ];
     }
 

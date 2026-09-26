@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -23,9 +26,21 @@ class ProductController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreProductRequest $request)
     {
         //
+        $validated = $request->validated();
+        $sizes = Arr::pull($validated, 'sizes',[]);
+        $image = Arr::pull($validated, 'images', []);
+        $validated['slug'] = Str::slug($validated['name']);
+        $product = DB::transaction(function () use ($validated, $sizes, $image) {
+            $product = Product::create($validated);
+            $product->sizes()->createMany($sizes);
+            $product->images()->createMany($image);
+            return $product;
+        });
+        $product->load(['sizes','images','brand','category']);
+        return response()->json(new ProductResource($product), 201);
     }
 
     /**
