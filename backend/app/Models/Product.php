@@ -50,13 +50,13 @@ class Product extends Model
     {
         return $this->hasMany(ProductSize::class);
     }
-
     public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
 
-    public function scopeActive(Builder $query): Builder{
-        return $query->where('status','active');
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', 'active');
     }
 }
