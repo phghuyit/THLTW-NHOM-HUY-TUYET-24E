@@ -14,12 +14,22 @@ use App\Http\Controllers\BrandController;
 |--------------------------------------------------------------------------
 */
 
+// Products (Client)
 Route::prefix('products')->as('products.')->group(function () {
     Route::get('/', [ProductController::class, 'index'])->name('index');
     Route::get('/{slug}', [ProductController::class, 'show'])->name('show');
 });
-Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
+
+// Categories
 Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
+
+// Banners
+Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
+
+// Authenticated User Profile
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum')->name('user.profile');
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +37,7 @@ Route::get('/categories', [CategoryController::class, 'index'])->name('categorie
 |--------------------------------------------------------------------------
 */
 Route::prefix('admin')->as('admin.')->group(function () {
+    // Trash Management
     Route::get('products/trash', [ProductController::class, 'trash'])->name('products.trash');
     Route::patch('products/{id}/restore', [ProductController::class, 'restore'])->name('products.restore');
     Route::delete('products/{id}/force', [ProductController::class, 'forceDelete'])->name('products.force-delete');
