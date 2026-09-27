@@ -23,8 +23,14 @@ Route::prefix('products')->as('products.')->group(function () {
 // Categories
 Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
 
-// Banners
-Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
+Route::get('/banners', [BannerController::class, 'index']);
+
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::post('/admin/categories', [CategoryController::class, 'store']);
+Route::get('/categories/{slug}', [CategoryController::class, 'show']);
+Route::patch('/admin/categories/{category}', [CategoryController::class, 'update']);
+Route::delete('/admin/categories/{category}', [CategoryController::class, 'softDelete']);
+Route::delete('/admin/categories/{id}/force', [CategoryController::class,'forceDelete',]);
 
 Route::get('/brands', [BrandController::class, 'index']);
 Route::post('/admin/brands', [BrandController::class, 'store']);
