@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -30,7 +30,7 @@ class ProductController extends Controller
     {
         //
         $validated = $request->validated();
-        $sizes = Arr::pull($validated, 'sizes',[]);
+        $sizes = Arr::pull($validated, 'sizes', []);
         $image = Arr::pull($validated, 'images', []);
         $validated['slug'] = Str::slug($validated['name']);
         $product = DB::transaction(function () use ($validated, $sizes, $image) {
@@ -39,16 +39,18 @@ class ProductController extends Controller
             $product->images()->createMany($image);
             return $product;
         });
-        $product->load(['sizes','images','brand','category']);
+        $product->load(['sizes', 'images', 'brand', 'category']);
         return response()->json(new ProductResource($product), 201);
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(string $slug)
     {
         //
+        $product = Product::with(['category', 'brand', 'images', 'sizes'])->where('slug', $slug)->firstOrFail();
+        return response()->json(new ProductResource($product));
     }
 
     /**
