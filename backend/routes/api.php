@@ -26,7 +26,13 @@ Route::get('/categories', [CategoryController::class, 'index'])->name('categorie
 // Banners
 Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
 
-// Authenticated User Profile
+Route::get('/brands', [BrandController::class, 'index']);
+Route::post('/admin/brands', [BrandController::class, 'store']);
+Route::get('/brands/{slug}', [BrandController::class, 'show']);
+Route::patch('/admin/brands/{brand}', [BrandController::class, 'update']);
+Route::delete('/admin/brands/{brand}', [BrandController::class, 'softDelete']);
+Route::delete('/admin/brands/{id}/force', [BrandController::class, 'forceDelete']);
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum')->name('user.profile');
