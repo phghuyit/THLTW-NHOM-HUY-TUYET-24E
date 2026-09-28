@@ -23,13 +23,28 @@ class AuthController extends Controller
             'data'=>$user,
         ],201);
 use App\Http\Requests\User\LoginInputRequest;
+use App\Http\Requests\User\RegisterRequest;
 use App\Http\Resources\User\LoginUserResource;
-use Illuminate\Http\Request;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    //
+    public function register(RegisterRequest $request)
+    {
+        $data = $request->validated();
+
+        $data['role'] = 'member';
+        $data['status'] = 'active';
+
+        $user = User::create($data);
+
+        return response()->json([
+            'message' => 'Đăng ký thành công',
+            'data' => $user,
+        ], 201);
+    }
+
     public function login(LoginInputRequest $request)
     {
         $credentials = $request->validated();
