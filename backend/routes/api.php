@@ -32,7 +32,11 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum')->name('user.profile');
 
-//Admin
+Route::post('/register',[AuthController::class, 'register'])
+->middleware('throttle:5,1')
+->name('register');
+
+// Admin 
 Route::prefix('admin')->as('admin.')->group(function () {
     Route::get('products/trash', [ProductController::class, 'trash'])->name('products.trash');
     Route::patch('products/{id}/restore', [ProductController::class, 'restore'])->name('products.restore');

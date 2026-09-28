@@ -18,7 +18,7 @@ class BrandController extends Controller
     {
         $brands = Brand::where('status', 'active')
             ->orderByDesc('id')
-            ->paginate(12);
+            ->paginate(2);
 
         return BrandResource::collection($brands);
     }

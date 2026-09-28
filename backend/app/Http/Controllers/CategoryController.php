@@ -17,7 +17,7 @@ class CategoryController extends Controller
         $categories = Category::where('status', 'active')
             ->orderBy('parent_id')
             ->orderBy('name')
-            ->paginate(12);
+            ->paginate(2);
         return CategoryResource::collection($categories);
     }
 
