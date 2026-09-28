@@ -114,7 +114,7 @@ class ProductController extends Controller
 
             return $product;
         });
-        $product->load(['sizes', 'images', 'brand', 'category']);
+        $product->refresh()->load(['sizes', 'images', 'brand', 'category']);
         return response()->json(new ProductResource($product));
     }
 
