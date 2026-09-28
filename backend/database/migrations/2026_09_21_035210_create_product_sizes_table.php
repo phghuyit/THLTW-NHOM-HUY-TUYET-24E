@@ -13,6 +13,7 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
             $table->enum('size', ['XS', 'S', 'M', 'L', 'XL', '2XL', 'FreeSize'])->default('FreeSize');
             $table->integer('stock_quantity')->default(0);
+            $table->softDeletes();
             $table->timestamps();
 
             $table->unique(['product_id', 'size'], 'unique_product_size');

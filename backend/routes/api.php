@@ -1,18 +1,20 @@
 <?php
 
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\ProductController;
 use App\Http\Controllers\AuthController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\BannerController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ProductController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
-
+//Public
 Route::prefix('products')->as('products.')->group(function () {
     Route::get('/', [ProductController::class, 'index'])->name('index');
     Route::get('/{slug}', [ProductController::class, 'show'])->name('show');
 });
+
+Route::post('/login',[AuthController::class,'login']);
 
 Route::prefix('categories')->as('categories.')->group(function () {
     Route::get('/', [CategoryController::class, 'index'])->name('index');
@@ -28,7 +30,7 @@ Route::get('/banners', [BannerController::class, 'index'])->name('banners.index'
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware('auth:sanctum');
+})->middleware('auth:sanctum')->name('user.profile');
 
 Route::post('/register',[AuthController::class, 'register'])
 ->middleware('throttle:5,1')

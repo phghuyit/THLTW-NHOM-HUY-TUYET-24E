@@ -33,6 +33,7 @@ class AuthController extends Controller
                 'message' => 'Email, mat khau khong dung hoac chua duoc kich hoat',
             ], 401);
         }
+        /** @var \App\Models\User $user */
         $user = Auth::user();
         $user->tokens()->delete();
         $token = $user->createToken('auth_member_token')->plainTextToken;

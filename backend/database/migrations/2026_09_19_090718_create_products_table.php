@@ -24,7 +24,7 @@ return new class extends Migration
             $table->integer('view_count')->default(0);
             $table->enum('status', ['active', 'hidden'])->default('active');
             $table->timestamps();
-
+            $table->softDeletes();
             $table->foreign('category_id')->references('id')->on('categories')->restrictOnDelete();
             $table->foreign('brand_id')->references('id')->on('brands')->nullOnDelete();
         });

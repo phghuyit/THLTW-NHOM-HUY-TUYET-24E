@@ -13,6 +13,7 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
             $table->string('image_url', 255);
             $table->integer('sort_order')->default(0);
+            $table->softDeletes();
         });
     }
 
