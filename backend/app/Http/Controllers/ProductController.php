@@ -22,7 +22,8 @@ class ProductController extends Controller
     public function index()
     {
         //
-        $products = Product::active()
+        $products = Product::with(['category:id,name', 'brand:id,name',])
+            ->active()
             ->latest()
             ->paginate(12);
         return ProductResource::collection($products);
