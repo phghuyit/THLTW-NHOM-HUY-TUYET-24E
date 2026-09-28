@@ -11,7 +11,7 @@ class ProductImage extends Model
 {
     use HasFactory, SoftDeletes;
 
-    public $timestamps = true;
+    public $timestamps = false;
 
     protected $fillable = [
         'product_id',
