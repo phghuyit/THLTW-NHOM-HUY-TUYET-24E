@@ -25,6 +25,9 @@ class RegisterRequest extends FormRequest
             'fullname' => ['required','string','max:255'],
             'email'=>['required','email','max:255','unique:users,email'],
             'password'=>['required','string','min:8','confirmed'],
+            'phone'=>['string','max:12','nullable','regex:/\A0[0-9]{9}\z/'],
+            'address'=>['required','string','max:255'],
+            //'avatar'=>['nullable','image','max:2048','mimes:jpg,jpeg,png,webp'],
         ];
     }
 }
