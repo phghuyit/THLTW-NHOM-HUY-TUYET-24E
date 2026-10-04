@@ -19,13 +19,15 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         //
         $products = Product::with(['category:id,name', 'brand:id,name',])
-            ->active()
-            ->latest()
-            ->paginate(12);
+            ->active();
+            if($request->boolean('featured')){
+                $products->where('is_featured',true);
+            }
+              $products = $products->latest()->paginate(12);
         return ProductResource::collection($products);
     }
 
