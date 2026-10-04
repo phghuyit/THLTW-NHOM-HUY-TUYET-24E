@@ -17,3 +17,13 @@ export async function getSaleProducts() {
 
   return result.data;
 }
+
+export async function getProducts(page: number = 1) {
+  const response = await fetch(
+    `${process.env.API_BASE_URL}/products?page=${page}`
+  );
+
+  const result = await response.json();
+
+  return result;
+}
