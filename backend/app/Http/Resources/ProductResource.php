@@ -24,6 +24,7 @@ class ProductResource extends JsonResource
             'short_description' => $this->short_description,
             'description' => $this->description,
             'rental_price_per_day' => $this->rental_price_per_day,
+            'sale_price_per_day' => $this->sale_price_per_day,
             'deposit_rate_percent' => $this->deposit_rate_percent,
             'original_value' => $this->original_value,
             'is_featured' => $this->is_featured,

@@ -38,6 +38,7 @@ class UpdateProductRequest extends FormRequest
             'short_description' => 'nullable|string|max:500',
             'description' => 'nullable|string',
             'rental_price_per_day' => 'sometimes|required|numeric|min:0',
+            'sale_price_per_day' => 'sometimes|nullable|numeric|gt:0',
             'deposit_rate_percent' => 'sometimes|required|numeric|min:0',
             'original_value' => 'sometimes|required|numeric|min:0',
             'is_featured' => 'boolean',
@@ -53,5 +54,33 @@ class UpdateProductRequest extends FormRequest
             'images' => 'nullable|array|min:1',
             'images.*.image_url' => 'sometimes|required|string|max:255',
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $product = $this->route('product');
+
+            $price = $this->input(
+                'rental_price_per_day',
+                $product->rental_price_per_day
+            );
+
+            $salePrice = $this->input(
+                'sale_price_per_day',
+                $product->sale_price_per_day
+            );
+
+            if ($salePrice !== null && $salePrice >= $price) {
+                $validator->errors()->add(
+                    'sale_price_per_day',
+                    'Giá khuyến mãi phải nhỏ hơn giá thuê gốc.'
+                );
+            }
+        });
     }
 }

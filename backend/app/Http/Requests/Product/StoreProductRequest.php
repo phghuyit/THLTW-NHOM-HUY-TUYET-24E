@@ -22,6 +22,7 @@ class StoreProductRequest extends FormRequest
             'short_description' => 'nullable|string|max:500',
             'description' => 'nullable|string',
             'rental_price_per_day' => 'required|numeric|min:0',
+            'sale_price_per_day' => 'nullable|numeric|gt:0|lt:rental_price_per_day',
             'deposit_rate_percent' => 'required|numeric|min:0',
             'original_value' => 'required|numeric|min:0',
             'is_featured' => 'boolean',

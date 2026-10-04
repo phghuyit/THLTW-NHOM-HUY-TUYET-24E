@@ -16,7 +16,20 @@ export default function ProductCard({ product }: { product: Product }) {
       )}
 
       <h2>{product.name}</h2>
-      <p>Giá thuê mỗi ngày: {product.rental_price_per_day} đồng</p>
+      {product.sale_price_per_day != null &&
+      Number(product.sale_price_per_day) > 0 &&
+      Number(product.sale_price_per_day) < Number(product.rental_price_per_day) ? (
+        <div>
+          <p className="text-gray-500 line-through">
+            {product.rental_price_per_day} đồng/ngày
+          </p>
+          <p className="font-bold text-red-600">
+            {product.sale_price_per_day} đồng/ngày
+          </p>
+        </div>
+      ) : (
+        <p>{product.rental_price_per_day} đồng/ngày</p>
+      )}
     </div>
   );
 }

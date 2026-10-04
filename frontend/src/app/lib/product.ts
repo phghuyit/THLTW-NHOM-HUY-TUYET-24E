@@ -1,6 +1,16 @@
 export async function getFeaturedProducts() {
   const response = await fetch(
-    "http://127.0.0.1:8000/api/products?featured=1"
+    `${process.env.API_BASE_URL}/products?featured=1`
+  );
+
+  const result = await response.json();
+
+  return result.data;
+}
+
+export async function getSaleProducts() {
+  const response = await fetch(
+    `${process.env.API_BASE_URL}/products?sale=1`
   );
 
   const result = await response.json();

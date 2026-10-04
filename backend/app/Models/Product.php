@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use HasFactory,SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'category_id',
@@ -22,6 +22,8 @@ class Product extends Model
         'short_description',
         'description',
         'rental_price_per_day',
+        'rental_price_per_day',
+        'sale_price_per_day',
         'deposit_rate_percent',
         'original_value',
         'is_featured',
@@ -30,6 +32,7 @@ class Product extends Model
     ];
 
     protected $casts = [
+        'sale_price_per_day' => 'decimal:2',
         'rental_price_per_day' => 'decimal:2',
         'deposit_rate_percent' => 'integer',
         'original_value' => 'decimal:2',

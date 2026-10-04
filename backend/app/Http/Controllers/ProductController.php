@@ -24,10 +24,16 @@ class ProductController extends Controller
         //
         $products = Product::with(['category:id,name', 'brand:id,name',])
             ->active();
-            if($request->boolean('featured')){
-                $products->where('is_featured',true);
-            }
-              $products = $products->latest()->paginate(12);
+        if ($request->boolean('featured')) {
+            $products->where('is_featured', true);
+        }
+
+        if ($request->boolean('sale')) {
+            $products->where('sale_price_per_day', '>', 0)
+                ->whereColumn('sale_price_per_day', '<', 'rental_price_per_day');
+        }
+
+        $products = $products->latest()->paginate(12);
         return ProductResource::collection($products);
     }
 
