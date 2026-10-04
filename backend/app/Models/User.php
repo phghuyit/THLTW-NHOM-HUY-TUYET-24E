@@ -47,4 +47,9 @@ class User extends Authenticatable
     {
         return $this->status ==='active';
     }
+
+    public function cart(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Cart::class);
+    }
 }
