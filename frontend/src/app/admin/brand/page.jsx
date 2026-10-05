@@ -1,4 +1,4 @@
-import BrandList from "@/components/BrandList";
+import BrandList from "@/components/admin/BrandList";
 
 export default function BrandPage() {
   return (
