@@ -24,7 +24,7 @@
 /backend/vendor
 Homestead.json
 Homestead.yaml
-
+/docs/*
 # Laravel sinh ra lúc chạy. Bình thường được che bởi các .gitignore lồng trong
 # backend/, nhưng những file đó chỉ tồn tại trên branch đã có commit backend.
 # Khai báo lại ở đây để không lộ ra khi checkout sang branch khác.
@@ -56,7 +56,9 @@ Homestead.yaml
 /frontend/node_modules
 /frontend/dist
 /frontend/build
+/frontend/out
 /frontend/.next
+/frontend/.turbo
 /frontend/.nuxt
 /frontend/.vite
 /frontend/coverage

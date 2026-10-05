@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
-use Illuminate\Http\Request;
 use App\Http\Resources\CategoryResource;
 use Illuminate\Validation\Rule;
 use Str;
@@ -61,7 +60,6 @@ class CategoryController extends Controller
         }
         $category->update($data);
         return new CategoryResource($category);
-
     }
 
     public function softDelete(Category $category)
@@ -94,4 +92,3 @@ class CategoryController extends Controller
         return response()->noContent();
     }
 }
-
