@@ -1,4 +1,4 @@
-import DanhMucList from "@/components/DanhMucList";
+import DanhMucList from "@/components/admin/DanhMucList";
 
 export default function DanhMucPage() {
   return (

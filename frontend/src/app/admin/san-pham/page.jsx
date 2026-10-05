@@ -1,4 +1,4 @@
-import SanPhamList from "@/components/SanPhamList";
+import SanPhamList from "@/components/admin/SanPhamList";
 
 export default function SanPhamPage() {
   return (
