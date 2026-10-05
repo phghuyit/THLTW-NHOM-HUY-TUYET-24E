@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CartController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Middleware\CheckAdmin;
@@ -33,6 +34,15 @@ Route::prefix('brands')->as('brands.')->group(function () {
 });
 
 Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
+
+Route::prefix('cart')->as('cart.')->group(function () {
+    Route::get('/', [CartController::class, 'index'])->name('index');
+    Route::post('/', [CartController::class, 'store'])->name('store');
+    Route::post('/add', [CartController::class, 'store'])->name('add');
+    Route::put('/{id}', [CartController::class, 'update'])->name('update');
+    Route::delete('/clear', [CartController::class, 'clear'])->name('clear');
+    Route::delete('/{id}', [CartController::class, 'destroy'])->name('destroy');
+});
 
 Route::post('/register', [AuthController::class, 'register'])
     ->middleware('throttle:5,1')
