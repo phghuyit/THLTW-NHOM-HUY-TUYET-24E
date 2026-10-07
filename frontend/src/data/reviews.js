@@ -1,0 +1,61 @@
+export const REVIEWS = [
+  {
+    id: "rv-01",
+    productSlug: "ao-dai-cach-tan-do-theu-sen",
+    orderCode: "CR20260712-0031",
+    author: "Trần Mỹ Duyên",
+    rating: 5,
+    content: "Thêu tay rất sắc, màu đỏ lên ảnh đúng như hình. Mình cao 1m60 nặng 48kg mặc size S hơi rộng vai một chút nên đổi qua XS thì vừa. Shop giao đúng hẹn, đồ đã ủi phẳng.",
+    createdAt: "2026-07-18T10:12:00+07:00",
+    sizeWorn: "S",
+    heightCm: 160,
+  },
+  {
+    id: "rv-04",
+    productSlug: "dam-da-hoi-satin-midnight",
+    orderCode: "CR20260805-0044",
+    author: "Vũ Hà My",
+    rating: 5,
+    content: "Satin dày, đứng form, không lộ nội y. Đi gala công ty được hỏi mua ở đâu suốt buổi. Gọng ngực ôm chắc nên nhảy thoải mái.",
+    createdAt: "2026-08-09T22:15:00+07:00",
+    sizeWorn: "S",
+    heightCm: 166,
+  },
+  {
+    id: "rv-06",
+    productSlug: "vay-cuoi-ren-phap-tay-phong",
+    orderCode: "CR20260614-0012",
+    author: "Nguyễn Thanh Vân",
+    rating: 5,
+    content: "Ren Pháp đính tay nhìn tận nơi rất khác ảnh chụp. Chỉ có một bộ nên mình đặt trước 2 tháng, shop giữ lịch đúng hẹn. Tay phồng tháo rời rất tiện lúc đãi tiệc.",
+    createdAt: "2026-06-20T11:30:00+07:00",
+    sizeWorn: "M",
+    heightCm: 164,
+  },
+  {
+    id: "rv-08",
+    productSlug: "vest-nam-navy-may-do",
+    orderCode: "CR20260710-0027",
+    author: "Đỗ Trung Kiên",
+    rating: 5,
+    content: "Thuê vest rẻ hơn mua nhiều, mà mỗi dịp lại đổi được màu khác. Lần này navy, lần sau thử ghi.",
+    createdAt: "2026-07-14T13:20:00+07:00",
+    sizeWorn: "M",
+    heightCm: 172,
+  },
+  {
+    id: "rv-09",
+    productSlug: "dam-hoa-maxi-vuon-xuan",
+    orderCode: "CR20260822-0056",
+    author: "Ngô Phương Anh",
+    rating: 4,
+    content: "Voan nhẹ, đi tiệc cưới ngoài trời rất mát. Có dây rút eo nên người gầy như mình vẫn ôm được. Vết trà mình làm đổ được shop báo phí giặt 100k, rất minh bạch.",
+    createdAt: "2026-08-28T19:10:00+07:00",
+    sizeWorn: "S",
+    heightCm: 158,
+  },
+];
+
+export const FEATURED_REVIEWS = ["rv-06", "rv-04", "rv-09", "rv-08"]
+  .map((id) => REVIEWS.find((r) => r.id === id))
+  .filter(Boolean);
