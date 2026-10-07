@@ -1,37 +1,124 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { IconArrowRight, IconMail, IconPhone, IconPin } from "@/components/ui/Icons";
+import { useToast } from "@/components/ui/Toast";
+
 export default function Footer() {
+  const toast = useToast();
+  const [email, setEmail] = useState("");
+
+  const footerLinks = [
+    {
+      title: "Mua sắm",
+      links: [
+        { label: "Toàn bộ bộ sưu tập", href: "/products" },
+        { label: "Mới về", href: "/products" },
+        { label: "Đang được thuê nhiều", href: "/products" },
+        { label: "Váy cưới", href: "/products?category=vay-cuoi" },
+        { label: "Vest & Tuxedo", href: "/products?category=vest-nam" },
+      ],
+    },
+    {
+      title: "Hỗ trợ",
+      links: [
+        { label: "Thuê đồ hoạt động thế nào", href: "/products" },
+        { label: "Chính sách thuê & hoàn cọc", href: "/products" },
+        { label: "Câu hỏi thường gặp", href: "/products" },
+        { label: "Bảng size & gợi ý size", href: "/products" },
+      ],
+    },
+    {
+      title: "Tài khoản",
+      links: [
+        { label: "Hồ sơ & số đo", href: "/login" },
+        { label: "Đơn thuê của tôi", href: "/login" },
+        { label: "Sổ địa chỉ", href: "/login" },
+        { label: "Yêu thích", href: "/products" },
+      ],
+    },
+  ];
+
   return (
-    <footer className="border-t border-gray-200 bg-gray-50 px-8 py-12 text-gray-800">
-      <div className="flex flex-wrap gap-10">
-        <div className="flex-1 min-w-48">
-          <h2 className="mb-4 text-2xl font-bold">H & T Shop</h2>
-          <p className="mb-4 text-gray-500">Thời trang dành cho bạn</p>
-          <p className="mb-3">Địa chỉ: Truong Cao dang Cong thuong TP.HCM</p>
-          <p className="mb-3">Hotline: 0909090909</p>
-          <p className="mb-3">Email: h&t@gmail.com</p>
-          <p>Giờ mở cửa: 9:00 - 23:00</p>
+    <footer className="mt-24 border-t border-line bg-canvas">
+      <div className="shell">
+        <div className="grid gap-10 border-b border-line py-16 md:grid-cols-2 md:gap-20">
+          <div data-reveal>
+            <p className="eyebrow text-ink-3">Thư của StyleRent</p>
+            <h2 className="display-2 mt-4 max-w-[14ch]">Tủ đồ mới, gửi mỗi tháng một lần.</h2>
+          </div>
+          <div className="flex flex-col justify-end" data-reveal style={{ "--reveal-delay": "120ms" }}>
+            <p className="lede max-w-[46ch] text-[14px]">
+              Thiết kế mới về, mẹo chọn size và lịch mở đặt cho mùa cưới. Không quảng cáo dày đặc.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!email.includes("@")) return;
+                toast.push({ tone: "success", title: "Đã đăng ký nhận thư", body: email });
+                setEmail("");
+              }}
+              className="mt-6 flex items-center gap-3 border-b border-ink pb-3"
+            >
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email của bạn"
+                className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-ink-3"
+                aria-label="Email nhận bản tin"
+              />
+              <button type="submit" aria-label="Đăng ký" className="p-1 transition-transform duration-300 hover:translate-x-1">
+                <IconArrowRight width={18} height={18} />
+              </button>
+            </form>
+          </div>
         </div>
 
-        <div className="flex-1 min-w-48">
-          <h2 className="mb-6 font-bold text-gray-500">MUA SẮM</h2>
-          <p className="mb-4">Toàn bộ bộ sưu tập</p>
-          <p className="mb-4">Mới về</p>
-          <p className="mb-4">Sản phẩm nổi bật</p>
-          <p className="mb-4">Đầm & Váy</p>
-          <p>Phụ kiện</p>
+        <div className="grid gap-10 py-16 md:grid-cols-4">
+          <div>
+            <p className="font-display text-[22px]" style={{ letterSpacing: "0.04em" }}>
+              StyleRent
+            </p>
+            <p className="mt-3 text-[13px] text-ink-2">Dịch vụ cho thuê trang phục cao cấp & uy tín hàng đầu.</p>
+            <ul className="mt-6 space-y-2.5 text-[13px] text-ink-2">
+              <li className="flex items-start gap-2.5">
+                <IconPin width={15} height={15} className="mt-0.5 shrink-0" />
+                123 Đường Thời Trang, Quận 1, TP. Hồ Chí Minh
+              </li>
+              <li className="flex items-center gap-2.5">
+                <IconPhone width={15} height={15} className="shrink-0" />
+                0908 123 456
+              </li>
+              <li className="flex items-center gap-2.5">
+                <IconMail width={15} height={15} className="shrink-0" />
+                contact@stylerent.vn
+              </li>
+            </ul>
+            <p className="mt-4 text-[12.5px] text-ink-3">Mở cửa: 08:30 - 21:00 hàng ngày</p>
+          </div>
+
+          {footerLinks.map((column) => (
+            <div key={column.title}>
+              <p className="eyebrow text-ink-3">{column.title}</p>
+              <ul className="mt-5 space-y-2.5">
+                {column.links.map((link) => (
+                  <li key={link.label}>
+                    <Link href={link.href} className="link-line link-underline-in text-[13.5px]">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
-        <div className="flex-1 min-w-48">
-          <h2 className="mb-6 font-bold text-gray-500">HỖ TRỢ</h2>
-          <p className="mb-4">Hướng dẫn mua hàng</p>
-          <p className="mb-4">Chính sách đổi trả</p>
-          <p className="mb-4">Câu hỏi thường gặp</p>
-          <p>Bảng size & gợi ý size</p>
-        </div>
-
-        <div className="flex-1 min-w-48">
-          <h2 className="mb-6 font-bold text-gray-500">TÀI KHOẢN</h2>
-          <p className="mb-4">Thông tin tài khoản</p>
-          <p>Yêu thích</p>
+        <div className="flex flex-col gap-3 border-t border-line py-7 text-[12px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} StyleRent · Đồ án hệ thống cho thuê trang phục</p>
+          <p>Giá đã bao gồm giặt hấp · Cọc hoàn 100% khi trả đồ nguyên vẹn</p>
         </div>
       </div>
     </footer>
