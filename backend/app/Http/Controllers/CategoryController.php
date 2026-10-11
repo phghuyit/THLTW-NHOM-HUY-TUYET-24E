@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
+
 use App\Http\Requests\Category\StoreCategoryRequest;
 use App\Http\Requests\Category\UpdateCategoryRequest;
 use App\Models\Category;
@@ -22,13 +24,14 @@ class CategoryController extends Controller
         return CategoryResource::collection($categories);
     }
 
-    public function adminIndex()
+    public function adminIndex(Request $request)
     {
+        $request->validate(['per_page' => ['sometimes', 'integer', 'in:5,12,24,48']]);
         $categories = Category::query()
             ->with('parent:id,name')
             ->withCount('products')
             ->orderByDesc('id')
-            ->paginate(12);
+            ->paginate($request->integer('per_page', 12));
 
         return CategoryResource::collection($categories);
     }

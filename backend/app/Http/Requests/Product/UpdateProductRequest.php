@@ -2,56 +2,20 @@
 
 namespace App\Http\Requests\Product;
 
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateProductRequest extends FormRequest
+class UpdateProductRequest extends StoreProductRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
-    public function authorize(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
-        $productId = $this->route('product')?->id ?? $this->route('product');
+        $rules = parent::rules();
+        foreach (['category_id', 'name', 'thumbnail', 'rental_price_per_day', 'deposit_rate_percent', 'original_value', 'sizes'] as $field) {
+            array_unshift($rules[$field], 'sometimes');
+        }
+        $id = $this->route('product')->id;
+        $rules['name'] = ['sometimes', 'required', 'string', 'max:200', Rule::unique('products', 'name')->ignore($id)];
+        $rules['slug'] = ['sometimes', 'required', 'string', 'max:220', Rule::unique('products', 'slug')->ignore($id)];
 
-        return [
-            'category_id' => 'sometimes|required|integer|exists:categories,id',
-            'brand_id' => 'nullable|integer|exists:brands,id',
-            'name' => [
-                'sometimes',
-                'required',
-                'string',
-                'max:200',
-                Rule::unique('products', 'name')->ignore($productId),
-            ],
-            'thumbnail' => 'sometimes|required|string|max:255',
-            'short_description' => 'nullable|string|max:500',
-            'description' => 'nullable|string',
-            'rental_price_per_day' => 'sometimes|required|numeric|min:0',
-            'deposit_rate_percent' => 'sometimes|required|numeric|min:0',
-            'original_value' => 'sometimes|required|numeric|min:0',
-            'is_featured' => 'boolean',
-            'status' => ['sometimes', Rule::in(['active', 'hidden'])],
-            'sizes' => 'sometimes|required|array|min:1',
-            'sizes.*.size' => [
-                'sometimes',
-                'required',
-                'distinct',
-                Rule::in(['XS', 'S', 'M', 'L', 'XL', '2XL', 'FreeSize']),
-            ],
-            'sizes.*.stock_quantity' => 'sometimes|required|integer|min:0',
-            'images' => 'nullable|array|min:1',
-            'images.*.image_url' => 'sometimes|required|string|max:255',
-        ];
+        return $rules;
     }
 }

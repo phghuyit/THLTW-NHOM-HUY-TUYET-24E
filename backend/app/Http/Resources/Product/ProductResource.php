@@ -7,6 +7,7 @@ use App\Http\Resources\Category\CategoryResource;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 class ProductResource extends JsonResource
 {
@@ -23,7 +24,8 @@ class ProductResource extends JsonResource
             'brand_id' => $this->brand_id,
             'name' => $this->name,
             'slug' => $this->slug,
-            'thumbnail' => $this->thumbnail,
+            'thumbnail' => $this->thumbnail && !Str::startsWith($this->thumbnail, ['http://', 'https://'])
+                ? url('storage/'.ltrim($this->thumbnail, '/')) : $this->thumbnail,
             'short_description' => $this->short_description,
             'description' => $this->description,
             'rental_price_per_day' => $this->rental_price_per_day,
@@ -34,6 +36,7 @@ class ProductResource extends JsonResource
             'status' => $this->status,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'deleted_at' => $this->when($this->trashed(), fn () => $this->deleted_at?->toISOString()),
             'category' => new CategoryResource($this->whenLoaded('category')),
             'brand' => new BrandResource($this->whenLoaded('brand')),
             'images' => ProductImageResource::collection($this->whenLoaded('images')),

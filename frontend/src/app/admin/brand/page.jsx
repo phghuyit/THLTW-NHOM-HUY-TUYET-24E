@@ -2,16 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Pagination from "@/components/admin/ui/Pagination";
 import Image from "next/image";
 import { deleteBrand, getBrands } from "@/services/brandService";
 import { PageHeader, StatCard, Toolbar } from "@/components/admin/ui/PageParts";
 import { IconPlus, IconTrash } from "@/components/admin/ui/Icons";
-import { DataTable, RowActions, TableFooter } from "@/components/admin/ui/DataTable";
+import { DataTable, RowActions } from "@/components/admin/ui/DataTable";
 import { StatusChip } from "@/components/admin/ui/Primitives";
 
 export default function BrandPage() {
 
   const [brands, setBrands] = useState([]);
+  const [meta, setMeta] = useState(null);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -20,9 +24,10 @@ export default function BrandPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getBrands(controller.signal)
+    getBrands(controller.signal, page, perPage)
       .then((result) => {
         setBrands(result.data);
+        setMeta(result.meta);
         setError("");
       })
       .catch((error) => {
@@ -35,7 +40,7 @@ export default function BrandPage() {
       });
 
     return () => controller.abort();
-  }, [reload]);
+  }, [page, perPage, reload]);
 
   async function handleDelete(brand) {
     if (deleting || !window.confirm(`Chuyển thương hiệu "${brand.name}" vào thùng rác? Có thể khôi phục sau.`)) return;
@@ -46,7 +51,8 @@ export default function BrandPage() {
       const result = await deleteBrand(brand.id);
       window.alert(result.message);
       setLoading(true);
-      setReload((value) => value + 1);
+      if (brands.length === 1 && page > 1) setPage(page - 1);
+      else setReload((value) => value + 1);
     } catch (error) {
       setActionError(error.response?.status === 404
         ? "Thương hiệu không tồn tại hoặc đã được xóa. Hãy tải lại trang."
@@ -54,6 +60,11 @@ export default function BrandPage() {
     } finally {
       setDeleting(false);
     }
+  }
+
+  function changePage(nextPage) {
+    setLoading(true);
+    setPage(nextPage);
   }
 
   if (loading) return <p role="status">Đang tải thương hiệu...</p>;
@@ -72,7 +83,7 @@ export default function BrandPage() {
       <StatCard label="Đang hiển thị" value={activeCount} tone="success" sub="Trong trang đang tải" />
       <StatCard label="Đang ẩn" value={brands.length - activeCount} sub="Trong trang đang tải" />
     </div>
-    <Toolbar searchPlaceholder="Tìm tên thương hiệu hoặc slug..." resultLabel={`${brands.length} thương hiệu`}>
+    <Toolbar searchPlaceholder="Tìm tên thương hiệu hoặc slug..." resultLabel={`${meta?.total ?? brands.length} thương hiệu`}>
       <button disabled type="button" className="btn btn-sm">Tất cả · {brands.length}</button>
       <button disabled type="button" className="btn btn-outline btn-sm">Đang hiển thị · {activeCount}</button>
       <button disabled type="button" className="btn btn-outline btn-sm">Đang ẩn · {brands.length - activeCount}</button>
@@ -106,7 +117,8 @@ export default function BrandPage() {
   </tr>
 ))}
     </DataTable>
-    <TableFooter label={`${brands.length} thương hiệu`} note="Dữ liệu từ backend" />
+    <Pagination meta={meta} page={page} perPage={perPage} label="thương hiệu" disabled={deleting || loading}
+            onPageChange={changePage} onPerPageChange={(value) => { setLoading(true); setPerPage(value); setPage(1); }} />
   </>;
 }
 

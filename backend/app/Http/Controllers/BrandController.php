@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
+
 use App\Http\Resources\Brand\BrandResource;
 use App\Http\Requests\Brand\StoreBrandRequest;
 use App\Http\Requests\Brand\UpdateBrandRequest;
@@ -16,12 +18,13 @@ class BrandController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $request->validate(['per_page' => ['sometimes', 'integer', 'in:5,12,24,48']]);
         $brands = Brand::query()
         
         ->orderByDesc('id')
-        ->paginate(12);
+        ->paginate($request->integer('per_page', 12));
 
         return BrandResource::collection($brands);
     }

@@ -1,7 +1,7 @@
 import api from "./api";
 
-export async function getCategories(signal, page = 1) {
-  const response = await api.get("/admin/categories", { signal, params: { page } });
+export async function getCategories(signal, page = 1, perPage = 12) {
+  const response = await api.get("/admin/categories", { signal, params: { page, per_page: perPage } });
   return response.data;
 }
 

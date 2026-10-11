@@ -21,7 +21,7 @@ export default function AdminShell({ children }) {
       </div>
     </aside>
     <div className="flex min-h-screen min-w-0 flex-col lg:pl-[var(--sidebar-w)]">
-      <header className="sticky top-0 z-20 flex h-[var(--header-h)] items-center gap-3 border-b border-line bg-canvas/95 px-4">
+      <header className="sticky top-0 z-20 flex h-[var(--header-h)] items-center gap-3 border-b border-line bg-white px-4">
         <span className="hidden text-[13px] font-medium md:block">Quản trị</span>
         <div className="mx-auto flex h-[34px] min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[12px] text-ink-3">
           <IconSearch width={15} height={15} /><span className="truncate">Tìm đơn, khách hàng, sản phẩm...</span>

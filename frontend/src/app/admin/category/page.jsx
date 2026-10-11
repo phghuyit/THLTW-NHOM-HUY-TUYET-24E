@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import Pagination from "@/components/admin/ui/Pagination";
 import { deleteCategory, getCategories } from "@/services/categoryService";
 import { PageHeader, Toolbar } from "@/components/admin/ui/PageParts";
 import { IconPlus, IconTrash } from "@/components/admin/ui/Icons";
@@ -12,6 +14,7 @@ export default function CategoryPage() {
   const [categories, setCategories] = useState([]);
   const [meta, setMeta] = useState(null);
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -20,7 +23,7 @@ export default function CategoryPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getCategories(controller.signal, page)
+    getCategories(controller.signal, page, perPage)
       .then((result) => {
         setCategories(result.data);
         setMeta(result.meta);
@@ -35,7 +38,7 @@ export default function CategoryPage() {
       });
 
     return () => controller.abort();
-  }, [page, reload]);
+  }, [page, perPage, reload]);
 
   async function handleDelete(category) {
     if (deleting || !window.confirm(`Chuyển danh mục "${category.name}" vào thùng rác? Có thể khôi phục sau.`)) return;
@@ -73,22 +76,23 @@ export default function CategoryPage() {
           <DataTable label="Danh sách danh mục" headings={<><th>ID</th><th>Danh mục</th><th>Slug</th><th>Danh mục cha</th><th>Mô tả</th><th>Sản phẩm</th><th>Trạng thái</th><th className="text-right">Thao tác</th></>}>
             {categories.length === 0 && <tr><td colSpan={8} className="text-center text-ink-2">Chưa có danh mục.</td></tr>}
             {categories.map((category) => <tr key={category.id}>
-              <td>{category.id}</td><td className="font-medium">{category.name}</td><td>{category.slug}</td>
+              <td>{category.id}</td><td><div className="flex items-center gap-2.5"><CategoryImage key={category.image} src={category.image} name={category.name} /><span className="font-medium">{category.name}</span></div></td><td>{category.slug}</td>
               <td>{category.parent_id ? category.parent_name || `ID #${category.parent_id}` : "Danh mục gốc"}</td>
               <td>{category.description || "—"}</td><td>{category.products_count ?? 0}</td>
               <td><StatusChip tone={category.status === "active" ? "success" : "neutral"}>{category.status === "active" ? "Đang hiển thị" : "Đang ẩn"}</StatusChip></td>
               <td><RowActions editHref={`/admin/category/${category.id}/edit`} onDelete={() => handleDelete(category)} disabled={deleting} /></td>
             </tr>)}
           </DataTable>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-ink-3">
-            <span>{meta?.total ?? categories.length} danh mục · Dữ liệu từ backend</span>
-            <div className="flex items-center gap-2">
-              <button type="button" className="btn btn-outline btn-sm" disabled={page <= 1 || deleting} onClick={() => changePage(page - 1)}>Trước</button>
-              <span>Trang {page} / {meta?.last_page ?? 1}</span>
-              <button type="button" className="btn btn-outline btn-sm" disabled={page >= (meta?.last_page ?? 1) || deleting} onClick={() => changePage(page + 1)}>Sau</button>
-            </div>
-          </div>
+          <Pagination meta={meta} page={page} perPage={perPage} label="danh mục" disabled={deleting || loading}
+            onPageChange={changePage} onPerPageChange={(value) => { setLoading(true); setPerPage(value); setPage(1); }} />
         </>}
   </>;
 }
 
+
+function CategoryImage({ src, name }) {
+  const [failed, setFailed] = useState(false);
+  return src && !failed
+    ? <Image src={src} alt={`Ảnh ${name}`} width={40} height={40} unoptimized onError={() => setFailed(true)} className="h-10 w-10 shrink-0 rounded border border-line object-cover" />
+    : <span className="grid h-10 w-10 shrink-0 place-items-center rounded border border-line bg-beige text-[10px] text-ink-3">Ảnh</span>;
+}

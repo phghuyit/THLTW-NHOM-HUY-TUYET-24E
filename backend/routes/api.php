@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CartController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Middleware\CheckAdmin;
@@ -29,6 +30,15 @@ Route::prefix('categories')->as('categories.')->group(function () {
 
 Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
 
+Route::prefix('cart')->as('cart.')->group(function () {
+    Route::get('/', [CartController::class, 'index'])->name('index');
+    Route::post('/', [CartController::class, 'store'])->name('store');
+    Route::post('/add', [CartController::class, 'store'])->name('add');
+    Route::put('/{id}', [CartController::class, 'update'])->name('update');
+    Route::delete('/clear', [CartController::class, 'clear'])->name('clear');
+    Route::delete('/{id}', [CartController::class, 'destroy'])->name('destroy');
+});
+
 Route::post('/register', [AuthController::class, 'register'])
     ->middleware('throttle:5,1')
     ->name('register');
@@ -49,11 +59,20 @@ Route::prefix('admin')->as('admin.')->group(function () {
 
     Route::middleware(['auth:sanctum', CheckAdmin::class])->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::get('products/trash', [ProductController::class, 'trash'])->name('products.trash');
-        Route::patch('products/{id}/restore', [ProductController::class, 'restore'])->name('products.restore');
-        Route::delete('products/{id}/force', [ProductController::class, 'forceDelete'])->name('products.force-delete');
-        Route::apiResource('products', ProductController::class)->except(['index', 'show']);
 
+
+    });
+
+    Route::prefix('products')->as('products.')->group(function () {
+        Route::get('/', [ProductController::class, 'adminIndex'])->name('index');
+        Route::get('/options', [ProductController::class, 'formOptions'])->name('options');
+        Route::get('/trash', [ProductController::class, 'trash'])->name('trash');
+        Route::patch('/{id}/restore', [ProductController::class, 'restore'])->name('restore');
+        Route::delete('/{id}/force', [ProductController::class, 'forceDelete'])->name('force-delete');
+        Route::post('/', [ProductController::class, 'store'])->name('store');
+        Route::get('/{product}', [ProductController::class, 'adminShow'])->name('show');
+        Route::patch('/{product}', [ProductController::class, 'update'])->name('update');
+        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('brands')->as('brands.')->group(function () {

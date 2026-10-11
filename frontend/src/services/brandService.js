@@ -1,7 +1,7 @@
 import api from "./api";
 
-export async function getBrands(signal) {
-  const response = await api.get("/admin/brands", { signal });
+export async function getBrands(signal, page = 1, perPage = 12) {
+  const response = await api.get("/admin/brands", { signal, params: { page, per_page: perPage } });
   return response.data;
 }
 
