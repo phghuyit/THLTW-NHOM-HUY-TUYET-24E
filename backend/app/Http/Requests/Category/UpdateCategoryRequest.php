@@ -3,11 +3,10 @@
 namespace App\Http\Requests\Category;
 
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use App\Models\Category;
 
-class UpdateCategoryRequest extends FormRequest
+class UpdateCategoryRequest extends StoreCategoryRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -42,14 +41,21 @@ class UpdateCategoryRequest extends FormRequest
                             return;
                         }
                         $checkedID[]=$value;
-                        $value=Category::find($value)?->parent_id;
+                        $value=Category::withTrashed()->find($value)?->parent_id;
                     }
                 }
             ],
-            'image' => 'nullable|string|max:255',
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'description' => 'nullable|string',
             'status' => 'sometimes|required|in:active,hidden',
         ];
     }
 
+    public function messages(): array
+    {
+        return array_merge(parent::messages(), [
+            'parent_id.not_in' => 'Không thể chọn chính danh mục này làm danh mục cha.',
+        ]);
+    }
 }
+
