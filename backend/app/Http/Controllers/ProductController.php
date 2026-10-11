@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
-use App\Http\Resources\ProductResource;
+use App\Http\Resources\Product\ProductResource;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductSize;
@@ -34,7 +34,7 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
-        //
+        
         $validated = $request->validated();
         $sizes = Arr::pull($validated, 'sizes', []);
         $image = Arr::pull($validated, 'images', []);
@@ -54,7 +54,7 @@ class ProductController extends Controller
      */
     public function show(string $slug)
     {
-        //
+        
         $product = Product::with(['category', 'brand', 'images', 'sizes'])->where('slug', $slug)->where('status', 'active')->firstOrFail();
         return response()->json(new ProductResource($product));
     }
@@ -64,7 +64,7 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, Product $product)
     {
-        //
+            
         $validated = $request->validated();
         $images = Arr::pull($validated, 'images', []);
         $sizes = Arr::pull($validated, 'sizes', []);

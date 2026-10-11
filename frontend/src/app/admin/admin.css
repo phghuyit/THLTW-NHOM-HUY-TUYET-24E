@@ -1,0 +1,538 @@
+/* CSS gốc template, giới hạn trong .admin-theme. */
+/* ==========================================================================
+   StyleRent Operations — Admin design system
+   Premium Operational Dashboard + Modern Fashion Brand
+   ========================================================================== */
+@theme {
+  --color-canvas: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfbfa;
+  --color-ink: #181818;
+  --color-ink-2: #737373;
+  --color-ink-3: #a3a3a3;
+  --color-line: #e7e5e4;
+  --color-line-2: #f0efed;
+  --color-beige: #f1ece6;
+  --color-accent: #8e6259;
+  --color-accent-soft: #f4eeeb;
+  --color-success: #557a5b;
+  --color-success-soft: #eef3ef;
+  --color-warning: #b7791f;
+  --color-warning-soft: #fbf4e7;
+  --color-danger: #b94a48;
+  --color-danger-soft: #faecec;
+  --color-info: #4f6d8a;
+  --color-info-soft: #eef2f6;
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.admin-theme {
+  color-scheme: light;
+  --sidebar-w: 244px;
+  --sidebar-w-collapsed: 64px;
+  --header-h: 56px;
+}
+
+@layer base {
+  .admin-theme * {
+    border-color: var(--color-line);
+  }
+  .admin-theme {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  .admin-theme h1,
+  .admin-theme h2,
+  .admin-theme h3,
+  .admin-theme h4 {
+    font-weight: 550;
+    letter-spacing: -0.011em;
+  }
+  .admin-theme ::selection {
+    background: var(--color-ink);
+    color: #fff;
+  }
+  .admin-theme :focus-visible {
+    outline: 2px solid var(--color-info);
+    outline-offset: 1px;
+  }
+  .admin-theme input,
+  .admin-theme select,
+  .admin-theme textarea,
+  .admin-theme button {
+    font: inherit;
+  }
+  .admin-theme ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .admin-theme ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .admin-theme ::-webkit-scrollbar-thumb {
+    background: #d9d7d4;
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 99px;
+  }
+  .admin-theme ::-webkit-scrollbar-thumb:hover {
+    background: #bdbab6;
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* ---------------------------------------------------------- typography -- */
+  .admin-theme .h-page {
+    font-size: 19px;
+    font-weight: 560;
+    letter-spacing: -0.015em;
+  }
+  .admin-theme .h-section {
+    font-size: 14.5px;
+    font-weight: 560;
+  }
+  .admin-theme .label-xs {
+    font-size: 10.5px;
+    font-weight: 560;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+  }
+  .admin-theme .num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* -------------------------------------------------------------- buttons -- */
+  .admin-theme .btn {
+    --bg: var(--color-ink);
+    --fg: #fff;
+    --bd: var(--color-ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    height: 34px;
+    padding: 0 0.85rem;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--bd);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 160ms var(--ease-out-quint),
+      border-color 160ms var(--ease-out-quint),
+      color 160ms var(--ease-out-quint),
+      opacity 140ms linear;
+  }
+  .admin-theme .btn:hover:not(:disabled) {
+    --bg: #000;
+    --bd: #000;
+  }
+  .admin-theme .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .admin-theme .btn-outline {
+    --bg: var(--color-surface);
+    --fg: var(--color-ink);
+    --bd: var(--color-line);
+  }
+  .admin-theme .btn-outline:hover:not(:disabled) {
+    --bg: var(--color-surface);
+    --bd: #cfcbc7;
+  }
+  .admin-theme .btn-ghost {
+    --bg: transparent;
+    --fg: var(--color-ink-2);
+    --bd: transparent;
+  }
+  .admin-theme .btn-ghost:hover:not(:disabled) {
+    --bg: var(--color-line-2);
+    --fg: var(--color-ink);
+    --bd: transparent;
+  }
+  .admin-theme .btn-danger {
+    --bg: var(--color-surface);
+    --fg: var(--color-danger);
+    --bd: #e9cfcf;
+  }
+  .admin-theme .btn-danger:hover:not(:disabled) {
+    --bg: var(--color-danger);
+    --fg: #fff;
+    --bd: var(--color-danger);
+  }
+  .admin-theme .btn-sm {
+    height: 28px;
+    padding: 0 0.6rem;
+    font-size: 12.5px;
+  }
+  .admin-theme .btn-lg {
+    height: 40px;
+    padding: 0 1.1rem;
+    font-size: 13.5px;
+  }
+  .admin-theme .btn-icon {
+    width: 34px;
+    padding: 0;
+  }
+  .admin-theme .btn-icon.btn-sm {
+    width: 28px;
+  }
+  .admin-theme .btn-block {
+    width: 100%;
+  }
+
+  /* --------------------------------------------------------------- fields -- */
+  .admin-theme .field {
+    width: 100%;
+    height: 34px;
+    padding: 0 0.6rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    transition:
+      border-color 150ms var(--ease-out-quint),
+      box-shadow 150ms var(--ease-out-quint);
+  }
+  .admin-theme textarea.field {
+    height: auto;
+    padding: 0.5rem 0.6rem;
+    line-height: 1.55;
+  }
+  .admin-theme .field::placeholder {
+    color: var(--color-ink-3);
+  }
+  .admin-theme .field:hover {
+    border-color: #d6d3d0;
+  }
+  .admin-theme .field:focus {
+    outline: none;
+    border-color: var(--color-ink);
+    box-shadow: 0 0 0 3px rgba(24, 24, 24, 0.06);
+  }
+  .admin-theme .field-error {
+    border-color: var(--color-danger);
+  }
+  .admin-theme .field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-ink-2);
+    margin-bottom: 0.3rem;
+  }
+  .admin-theme .field-hint {
+    margin-top: 0.3rem;
+    font-size: 11.5px;
+    color: var(--color-ink-3);
+    line-height: 1.45;
+  }
+
+  /* ------------------------------------------------------------- surfaces -- */
+  .admin-theme .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    /* Ô trong lưới phải co lại được, nếu không trang sẽ tràn ngang trên mobile */
+    min-width: 0;
+  }
+  .admin-theme .card-pad {
+    padding: 1rem 1.1rem;
+  }
+
+  /* --------------------------------------------------------------- tables -- */
+  .admin-theme .tbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .admin-theme .tbl thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-surface-2);
+    border-bottom: 1px solid var(--color-line);
+    padding: 0.55rem 0.75rem;
+    text-align: left;
+    font-size: 11.5px;
+    font-weight: 560;
+    color: var(--color-ink-2);
+    white-space: nowrap;
+  }
+  .admin-theme .tbl tbody td {
+    border-bottom: 1px solid var(--color-line-2);
+    padding: 0.65rem 0.75rem;
+    vertical-align: middle;
+  }
+  .admin-theme .tbl tbody tr {
+    transition: background-color 120ms linear;
+  }
+  .admin-theme .tbl tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  /* Chế độ "Gọn": chiều cao dòng do ảnh đại diện và nút quyết định chứ không
+     chỉ do padding, nên phải thu nhỏ cả ba thứ thì mới thấy khác biệt. */
+  .admin-theme .tbl-compact thead th {
+    padding: 0.32rem 0.6rem;
+  }
+  .admin-theme .tbl-compact tbody td {
+    padding: 0.24rem 0.6rem;
+    line-height: 1.3;
+  }
+  /* Dòng phụ (mã SKU, số điện thoại, số ngày…) ẩn ở chế độ Gọn để mỗi dòng
+     chỉ còn một hàng chữ — đây mới là khác biệt người dùng thấy rõ. */
+  .admin-theme .tbl-compact [data-row-detail] {
+    display: none;
+  }
+  .admin-theme .tbl-compact [data-thumb] {
+    height: 22px;
+    width: 22px;
+  }
+  .admin-theme .tbl-compact .chip {
+    height: 19px;
+    font-size: 11px;
+  }
+  .admin-theme .tbl-compact .btn-sm {
+    height: 24px;
+  }
+  .admin-theme .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  /* --------------------------------------------------------------- chips --- */
+  .admin-theme .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 22px;
+    padding: 0 0.45rem;
+    border-radius: var(--radius-sm);
+    font-size: 11.5px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .admin-theme .chip-dot::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 99px;
+    background: currentColor;
+    flex: none;
+  }
+}
+
+/* ==========================================================================
+   Motion — restrained, feedback-oriented
+   ========================================================================== */
+@keyframes ad-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ad-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ad-drawer {
+  from {
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ad-sheet {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ad-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ad-toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ad-scanline {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, 100%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes ad-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes ad-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(185, 74, 72, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(185, 74, 72, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(185, 74, 72, 0);
+  }
+}
+
+.admin-theme .a-fade {
+  animation: ad-fade 160ms linear both;
+}
+.admin-theme .a-rise {
+  animation: ad-rise 220ms var(--ease-out-quint) both;
+}
+.admin-theme .a-drawer {
+  animation: ad-drawer 280ms var(--ease-out-quint) both;
+}
+.admin-theme .a-sheet {
+  animation: ad-sheet 280ms var(--ease-out-quint) both;
+}
+.admin-theme .a-pop {
+  animation: ad-pop 200ms var(--ease-out-quint) both;
+}
+.admin-theme .a-toast {
+  animation: ad-toast-in 240ms var(--ease-out-quint) both;
+}
+.admin-theme .a-scanline {
+  animation: ad-scanline 2.6s ease-in-out infinite;
+}
+.admin-theme .a-alert {
+  animation: ad-pulse-ring 2.4s ease-out infinite;
+}
+
+.admin-theme .skeleton {
+  background: linear-gradient(90deg, #eeeceb 25%, #f6f5f4 37%, #eeeceb 63%);
+  background-size: 200% 100%;
+  animation: ad-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+.admin-theme .no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.admin-theme .no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* Vệt mờ ở mép phải của một dải cuộn ngang đã ẩn thanh cuộn — dấu hiệu duy nhất
+   cho biết còn nội dung phía sau. Chỉ bật khi dải thật sự đang cuộn ngang:
+   `@container` cha đủ rộng thì lớp `@2xl:overflow-visible` cho chip xuống hàng,
+   lúc đó không được làm mờ chip cuối. */
+.admin-theme .scroll-hint-x {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+@supports (animation-timeline: scroll()) {
+  /* Trình duyệt hỗ trợ scroll-driven animation thì vệt mờ tắt dần khi cuộn tới
+     cuối, thay vì lúc nào cũng mờ sẵn. */
+  .admin-theme .scroll-hint-x {
+    animation: scroll-hint-fade linear both;
+    animation-timeline: scroll(self inline);
+    animation-range: contain;
+  }
+}
+@keyframes scroll-hint-fade {
+  to {
+    -webkit-mask-image: linear-gradient(to right, #000 100%, #000 100%);
+    mask-image: linear-gradient(to right, #000 100%, #000 100%);
+  }
+}
+
+.admin-theme .hide-spin::-webkit-outer-spin-button,
+.admin-theme .hide-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Timeline bar dùng ở màn Lịch thuê */
+.admin-theme .tl-grid {
+  background-image: linear-gradient(to right, var(--color-line-2) 1px, transparent 1px);
+}
+
+/* ==========================================================================
+   In tem QR — chỉ in vùng .print-root, phần giao diện còn lại bị ẩn khi in
+   ========================================================================== */
+.admin-theme .print-root {
+  display: none;
+}
+
+@media print {
+  .admin-theme,
+  .admin-theme {
+    background: #fff;
+    /* Modal khoá cuộn bằng overflow:hidden — phải trả lại khi in, nếu không
+       bản in bị cắt cụt ở trang đầu. */
+    overflow: visible !important;
+    height: auto !important;
+    padding-right: 0 !important;
+  }
+  /* Chỉ giấu giao diện khi trang thật sự có vùng in — Ctrl+P ở màn hình
+     thường vẫn in bình thường. */
+  .admin-theme:has(.print-root) > *:not(.print-root) {
+    display: none !important;
+  }
+  .admin-theme .print-root {
+    display: block !important;
+  }
+  @page {
+    margin: 10mm;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-theme *,
+  .admin-theme *::before,
+  .admin-theme *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.admin-theme { --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; --radius-xs: 2px; --radius-sm: 3px; --radius-md: 4px; --radius-lg: 6px; }

@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Http\Resources\Brand\BrandResource;
+use App\Http\Requests\Brand\StoreBrandRequest;
+use App\Http\Requests\Brand\UpdateBrandRequest;
 use App\Models\Brand;
-use App\Http\Resources\BrandResource;
-use App\Http\Requests\StoreBrandRequest;
-use Illuminate\Support\Str;
-use App\Http\Requests\UpdateBrandRequest;
-use Illuminate\Validation\Rule;
+use App\Models\Product;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+
 class BrandController extends Controller
 {
     /**
@@ -16,11 +18,20 @@ class BrandController extends Controller
      */
     public function index()
     {
-        $brands = Brand::where('status', 'active')
-            ->orderByDesc('id')
-            ->paginate(2);
+        $brands = Brand::query()
+        
+        ->orderByDesc('id')
+        ->paginate(12);
 
         return BrandResource::collection($brands);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        //
     }
 
     /**
@@ -29,12 +40,25 @@ class BrandController extends Controller
     public function store(StoreBrandRequest $request)
     {
         $data = $request->validated();
-        $data['slug'] = Str::slug($data['name']);
-        validator($data, [
-            'slug' => 'required|string|max:120|unique:brands,slug',
-        ])->validate();
-        $brand = Brand::create($data);
-        $brand->refresh();
+        $logoPath = null;
+
+        if ($request->hasFile('logo')) {
+            $logoPath = $request->file('logo')->store('brands', 'public');
+            if ($logoPath === false) {
+                abort(500, 'Không lưu được ảnh logo.');
+            }
+            $data['logo'] = $logoPath;
+        }
+
+        try {
+            $brand = Brand::create($data);
+        } catch (\Throwable $error) {
+            if ($logoPath) {
+                Storage::disk('public')->delete($logoPath);
+            }
+            throw $error;
+        }
+
         return (new BrandResource($brand))
             ->response()
             ->setStatusCode(201);
@@ -43,13 +67,17 @@ class BrandController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $slug)
+    public function show(Brand $brand)
     {
-        $brand = Brand::where('slug', $slug)
-            ->where('status', 'active')
-            ->firstOrFail();
-
         return new BrandResource($brand);
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Brand $brand)
+    {
+        //
     }
 
     /**
@@ -58,43 +86,80 @@ class BrandController extends Controller
     public function update(UpdateBrandRequest $request, Brand $brand)
     {
         $data = $request->validated();
-        if (isset($data['name'])) {
-            $data['slug'] = Str::slug($data['name']);
+        $oldLogo = $brand->logo;
+        $logoPath = null;
+        unset($data['logo']);
 
-            validator($data, [
-                'slug' => [
-                    'required',
-                    'string',
-                    'max:120',
-                    Rule::unique('brands', 'slug')->ignore($brand->id),
-                ],
-            ])->validate();
+        if ($request->hasFile('logo')) {
+            $logoPath = $request->file('logo')->store('brands', 'public');
+            if ($logoPath === false) {
+                abort(500, 'Không lưu được ảnh logo.');
+            }
+            $data['logo'] = $logoPath;
         }
-        $brand->update($data);
+
+        try {
+            $brand->update($data);
+        } catch (\Throwable $error) {
+            if ($logoPath) {
+                Storage::disk('public')->delete($logoPath);
+            }
+            throw $error;
+        }
+
+        if ($logoPath && $oldLogo && str_starts_with($oldLogo, 'brands/')
+            && !Brand::withTrashed()->where('logo', $oldLogo)->exists()) {
+            Storage::disk('public')->delete($oldLogo);
+        }
+
         return new BrandResource($brand);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function softDelete(Brand $brand)
+    public function destroy(Brand $brand)
     {
         $brand->delete();
 
-        return response()->noContent();
+        return response()->json(['message' => 'Đã chuyển thương hiệu vào thùng rác.']);
     }
 
-    public function forceDelete(string $id){
+    public function trash()
+    {
+        $brands = Brand::onlyTrashed()->orderByDesc('deleted_at')->orderByDesc('id')->paginate(12);
+
+        return BrandResource::collection($brands);
+    }
+
+    public function restore($id)
+    {
         $brand = Brand::onlyTrashed()->findOrFail($id);
-        $brand->forceDelete();
-        return response()->noContent();
+        $brand->restore();
+
+        return new BrandResource($brand);
     }
 
-    public function trash(){
-        $brand = Brand::onlyTrashed()
-        ->orderByDesc('deleted_at')
-        ->paginate(12);
-        return BrandResource::collection($brand);
-    }
+    public function forceDelete($id)
+    {
+        $logo = DB::transaction(function () use ($id) {
+            $brand = Brand::onlyTrashed()->lockForUpdate()->findOrFail($id);
 
+            if (Product::withTrashed()->where('brand_id', $brand->id)->exists()) {
+                abort(409, 'Không thể xóa vĩnh viễn vì thương hiệu còn được sản phẩm sử dụng, kể cả sản phẩm đã xóa mềm.');
+            }
+
+            $logo = $brand->logo;
+            $brand->forceDelete();
+
+            return $logo;
+        });
+
+        if ($logo && str_starts_with($logo, 'brands/')
+            && !Brand::withTrashed()->where('logo', $logo)->exists()) {
+            Storage::disk('public')->delete($logo);
+        }
+
+        return response()->json(['message' => 'Đã xóa vĩnh viễn thương hiệu.']);
+    }
 }

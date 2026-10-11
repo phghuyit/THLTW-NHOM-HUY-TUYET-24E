@@ -27,11 +27,6 @@ Route::prefix('categories')->as('categories.')->group(function () {
     Route::get('/{slug}', [CategoryController::class, 'show'])->name('show');
 });
 
-Route::prefix('brands')->as('brands.')->group(function () {
-    Route::get('/', [BrandController::class, 'index'])->name('index');
-    Route::get('/{slug}', [BrandController::class, 'show'])->name('show');
-});
-
 Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
 
 Route::post('/register', [AuthController::class, 'register'])
@@ -54,13 +49,20 @@ Route::prefix('admin')->as('admin.')->group(function () {
             Route::patch('/{category}', [CategoryController::class, 'update'])->name('update');
             Route::delete('/{category}', [CategoryController::class, 'softDelete'])->name('destroy');
             Route::delete('/{id}/force', [CategoryController::class, 'forceDelete'])->name('force-delete');
+
+
         });
 
-        Route::prefix('brands')->as('brands.')->group(function () {
-            Route::post('/', [BrandController::class, 'store'])->name('store');
-            Route::patch('/{brand}', [BrandController::class, 'update'])->name('update');
-            Route::delete('/{brand}', [BrandController::class, 'softDelete'])->name('destroy');
-            Route::delete('/{id}/force', [BrandController::class, 'forceDelete'])->name('force-delete');
-        });
+    });
+
+    Route::prefix('brands')->as('brands.')->group(function () {
+        Route::get('/', [BrandController::class, 'index'])->name('index');
+        Route::post('/', [BrandController::class, 'store'])->name('store');
+        Route::get('/trash', [BrandController::class, 'trash'])->name('trash');
+        Route::patch('/{id}/restore', [BrandController::class, 'restore'])->name('restore');
+        Route::delete('/{id}/force', [BrandController::class, 'forceDelete'])->name('force-delete');
+        Route::get('/{brand}', [BrandController::class, 'show'])->name('show');
+        Route::patch('/{brand}', [BrandController::class, 'update'])->name('update');
+        Route::delete('/{brand}', [BrandController::class, 'destroy'])->name('destroy');
     });
 });
