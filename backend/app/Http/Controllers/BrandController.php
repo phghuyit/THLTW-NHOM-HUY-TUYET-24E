@@ -90,11 +90,23 @@ class BrandController extends Controller
         return response()->noContent();
     }
 
-    public function trash(){
-        $brand = Brand::onlyTrashed()
-        ->orderByDesc('deleted_at')
-        ->paginate(12);
-        return BrandResource::collection($brand);
+    public function trash()
+    {
+        $brands = Brand::onlyTrashed()
+            ->orderByDesc('deleted_at')
+            ->paginate(12);
+
+        return BrandResource::collection($brands);
     }
 
+    public function restore(string $id)
+    {
+        $brand = Brand::onlyTrashed()->findOrFail($id);
+        $brand->restore();
+
+        return response()->json([
+            'message' => 'Khôi phục thương hiệu thành công',
+            'code' => 200,
+        ], 200);
+    }
 }

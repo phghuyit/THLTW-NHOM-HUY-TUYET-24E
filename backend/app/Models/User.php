@@ -8,11 +8,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable,HasApiTokens;
+    use HasFactory, Notifiable, HasApiTokens, SoftDeletes;
 
     protected $fillable = [
         'role',
@@ -30,7 +32,7 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-   
+
     protected function casts(): array
     {
         return [
@@ -42,7 +44,7 @@ class User extends Authenticatable
     {
         return $this->role === 'admin';
     }
-    
+
     public function isActive(): bool
     {
         return $this->status ==='active';
@@ -51,5 +53,14 @@ class User extends Authenticatable
     public function cart(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Cart::class);
+    }
+
+    public function orders(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    public function scopeActive(Builder $query): Builder{
+        return $query->where('status','active');
     }
 }

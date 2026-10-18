@@ -5,7 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useMounted, useScrollY } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { IconBag, IconHeart, IconSearch, IconUser } from "@/components/ui/Icons";
+import {
+  IconBag,
+  IconHeart,
+  IconSearch,
+  IconUser,
+} from "@/components/ui/Icons";
 import { useCart } from "@/store/cart";
 import { useWishlist } from "@/store/wishlist";
 
@@ -21,7 +26,7 @@ export default function Navbar() {
   const solid = scrollY > 24 || !overHero;
 
   const navLinks = [
-    { label: "Mới về", href: "/products" },
+    { label: "Tất cả sản phẩm", href: "/products" },
     { label: "Áo dài", href: "/products?category=ao-dai" },
     { label: "Đầm dạ hội", href: "/products?category=dam-da-hoi" },
     { label: "Vest nam", href: "/products?category=vest-nam" },
@@ -34,7 +39,9 @@ export default function Navbar() {
       className={cn(
         "inset-x-0 top-0 z-40 transition-[background-color,backdrop-filter,border-color] duration-500 ease-luxe",
         overHero ? "fixed" : "sticky",
-        solid ? "border-b border-line bg-canvas/92 backdrop-blur-md" : "border-b border-transparent bg-transparent",
+        solid
+          ? "border-b border-line bg-canvas/92 backdrop-blur-md"
+          : "border-b border-transparent bg-transparent",
       )}
     >
       <div className="shell flex h-[76px] items-center justify-between gap-4">
@@ -58,7 +65,13 @@ export default function Navbar() {
                 href={link.href}
                 className={cn(
                   "link-line link-underline-in text-[11.5px] uppercase tracking-[0.13em] transition-colors",
-                  solid ? (active ? "text-accent font-semibold" : "text-ink") : (active ? "text-canvas font-semibold" : "text-canvas/85"),
+                  solid
+                    ? active
+                      ? "text-accent font-semibold"
+                      : "text-ink"
+                    : active
+                      ? "text-canvas font-semibold"
+                      : "text-canvas/85",
                 )}
               >
                 {link.label}
@@ -84,7 +97,9 @@ export default function Navbar() {
               placeholder="Tìm kiếm..."
               className={cn(
                 "h-9 w-36 lg:w-44 rounded-sm border px-3 pl-8 text-[12.5px] outline-none transition-colors",
-                solid ? "border-line bg-surface text-ink placeholder:text-ink-3" : "border-canvas/30 bg-canvas/10 text-canvas placeholder:text-canvas/60",
+                solid
+                  ? "border-line bg-surface text-ink placeholder:text-ink-3"
+                  : "border-canvas/30 bg-canvas/10 text-canvas placeholder:text-canvas/60",
               )}
             />
             <IconSearch
@@ -117,7 +132,9 @@ export default function Navbar() {
             href="/login"
             className={cn(
               "btn btn-sm gap-1.5",
-              solid ? "btn-outline" : "border-canvas/60 text-canvas hover:bg-canvas hover:text-ink",
+              solid
+                ? "btn-outline"
+                : "border-canvas/60 text-canvas hover:bg-canvas hover:text-ink",
             )}
           >
             <IconUser width={14} height={14} />

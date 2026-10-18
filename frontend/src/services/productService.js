@@ -55,4 +55,31 @@ export const productService = {
       return { success: true };
     }
   },
+
+  async getTrashProducts() {
+    try {
+      const res = await api.get("/admin/products/trash");
+      return res.data.data || res.data;
+    } catch {
+      return [];
+    }
+  },
+
+  async restoreProduct(id) {
+    try {
+      const res = await api.patch(`/admin/products/${id}/restore`);
+      return res.data;
+    } catch {
+      return { success: true };
+    }
+  },
+
+  async forceDeleteProduct(id) {
+    try {
+      const res = await api.delete(`/admin/products/${id}/force`);
+      return res.data;
+    } catch {
+      return { success: true };
+    }
+  },
 };

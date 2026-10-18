@@ -86,9 +86,26 @@ class CategoryController extends Controller
                 'message' => 'Không thể xóa vĩnh viễn khi còn danh mục con hoặc sản phẩm.',
             ], 409);
         }
-
         $category->forceDelete();
 
         return response()->noContent();
+    }
+
+    public function restore(string $id)
+    {
+        $category = Category::onlyTrashed()->findOrFail($id);
+        $category->restore();
+
+        return response()->json([
+            'message' => 'Khôi phục danh mục thành công',
+            'code' => 200,
+        ], 200);
+    }
+
+    public function trash()
+    {
+        $categories = Category::onlyTrashed()->latest('deleted_at')->paginate(12);
+
+        return CategoryResource::collection($categories);
     }
 }

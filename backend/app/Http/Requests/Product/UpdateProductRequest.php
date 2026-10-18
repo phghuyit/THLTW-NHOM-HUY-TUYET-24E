@@ -7,19 +7,11 @@ use Illuminate\Validation\Rule;
 
 class UpdateProductRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         $productId = $this->route('product')?->id ?? $this->route('product');
@@ -52,6 +44,67 @@ class UpdateProductRequest extends FormRequest
             'sizes.*.stock_quantity' => 'sometimes|required|integer|min:0',
             'images' => 'nullable|array|min:1',
             'images.*.image_url' => 'sometimes|required|string|max:255',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'category_id' => 'danh mục',
+            'brand_id' => 'thương hiệu',
+            'name' => 'tên sản phẩm',
+            'thumbnail' => 'ảnh đại diện sản phẩm',
+            'short_description' => 'mô tả ngắn',
+            'description' => 'mô tả chi tiết',
+            'rental_price_per_day' => 'giá thuê theo ngày',
+            'deposit_rate_percent' => 'tỷ lệ đặt cọc (%)',
+            'original_value' => 'giá trị gốc',
+            'is_featured' => 'sản phẩm nổi bật',
+            'status' => 'trạng thái',
+            'sizes' => 'danh sách kích cỡ',
+            'sizes.*.size' => 'kích cỡ',
+            'sizes.*.stock_quantity' => 'số lượng tồn kho',
+            'images' => 'danh sách hình ảnh',
+            'images.*.image_url' => 'đường dẫn hình ảnh',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'category_id.required' => 'Vui lòng chọn :attribute.',
+            'category_id.exists' => ':Attribute được chọn không tồn tại.',
+            'brand_id.exists' => ':Attribute được chọn không tồn tại.',
+            'name.required' => 'Vui lòng nhập :attribute.',
+            'name.max' => ':Attribute không được vượt quá :max ký tự.',
+            'name.unique' => ':Attribute đã tồn tại.',
+            'thumbnail.required' => 'Vui lòng cung cấp :attribute.',
+            'thumbnail.max' => ':Attribute không được vượt quá :max ký tự.',
+            'short_description.max' => ':Attribute không được vượt quá :max ký tự.',
+            'rental_price_per_day.required' => 'Vui lòng nhập :attribute.',
+            'rental_price_per_day.numeric' => ':Attribute phải là số.',
+            'rental_price_per_day.min' => ':Attribute không được nhỏ hơn :min.',
+            'deposit_rate_percent.required' => 'Vui lòng nhập :attribute.',
+            'deposit_rate_percent.numeric' => ':Attribute phải là số.',
+            'deposit_rate_percent.min' => ':Attribute không được nhỏ hơn :min.',
+            'original_value.required' => 'Vui lòng nhập :attribute.',
+            'original_value.numeric' => ':Attribute phải là số.',
+            'original_value.min' => ':Attribute không được nhỏ hơn :min.',
+            'is_featured.boolean' => ':Attribute phải là true hoặc false.',
+            'status.in' => ':Attribute không hợp lệ, chỉ chấp nhận active hoặc hidden.',
+            'sizes.required' => 'Vui lòng chọn ít nhất một :attribute.',
+            'sizes.array' => ':Attribute phải là dạng danh sách.',
+            'sizes.min' => 'Vui lòng chọn ít nhất một :attribute.',
+            'sizes.*.size.required' => 'Vui lòng chọn :attribute.',
+            'sizes.*.size.distinct' => ':Attribute không được trùng lặp.',
+            'sizes.*.size.in' => ':Attribute không hợp lệ.',
+            'sizes.*.stock_quantity.required' => 'Vui lòng nhập :attribute.',
+            'sizes.*.stock_quantity.integer' => ':Attribute phải là số nguyên.',
+            'sizes.*.stock_quantity.min' => ':Attribute không được nhỏ hơn :min.',
+            'images.array' => ':Attribute phải là dạng danh sách.',
+            'images.min' => ':Attribute phải có ít nhất 1 ảnh.',
+            'images.*.image_url.required' => 'Vui lòng nhập :attribute.',
+            'images.*.image_url.max' => ':Attribute không được vượt quá :max ký tự.',
         ];
     }
 }

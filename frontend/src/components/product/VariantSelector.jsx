@@ -22,8 +22,9 @@ export function VariantSelector({
     ? [...colorMap.entries()].map(([name, hex]) => ({ name, hex }))
     : [{ name: "Tiêu chuẩn", hex: "#333333" }];
 
-  const rawSizes = [...new Set(variants.map((v) => v.size).filter(Boolean))];
-  const sizes = rawSizes.length > 0 ? rawSizes : (product.sizes || ["Free"]);
+  const rawSizes = [...new Set(variants.map((v) => (typeof v.size === "object" ? v.size?.size : v.size)).filter(Boolean))];
+  const fallbackSizes = (product.sizes || ["Free"]).map((s) => (typeof s === "object" ? s?.size : s)).filter(Boolean);
+  const sizes = rawSizes.length > 0 ? rawSizes : (fallbackSizes.length > 0 ? fallbackSizes : ["Free"]);
 
   return (
     <div className="space-y-6">
