@@ -60,7 +60,7 @@ export function Marquee() {
 }
 
 export function CategoryStrip({ categories = [] }) {
-  // Giữ bố cục lệch cột của template, thay danh mục mẫu bằng dữ liệu backend.
+
   const spans = ["md:col-span-5", "md:col-span-3", "md:col-span-4"];
 
   return (

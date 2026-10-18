@@ -27,7 +27,7 @@ class CategoryController extends Controller
             $query->whereHas('products', fn ($products) => $products->active());
         }
 
-        // Dùng ảnh một sản phẩm đang hoạt động làm ảnh dự phòng cho danh mục.
+
         $query->addSelect(['preview_image' => Product::select('thumbnail')
             ->whereColumn('category_id', 'categories.id')
             ->active()->latest()->orderByDesc('id')->limit(1)]);

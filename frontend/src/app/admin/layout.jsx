@@ -30,7 +30,7 @@ export default function AdminLayout({ children }) {
           router.replace("/admin/login");
           return;
         }
-        // Luôn hỏi backend; không lấy quyền admin từ dữ liệu tự lưu trên máy.
+
         const user = await adminAuthService.getCurrentAdmin();
         if (!cancelled) setAdmin(user);
       } catch (error) {
@@ -51,7 +51,7 @@ export default function AdminLayout({ children }) {
     return () => { cancelled = true; };
   }, [isLoginPage, pathname, router, retry]);
 
-  // Trang login không có sidebar và header quản trị.
+
   if (isLoginPage) return children;
 
   if (checking || !admin) {

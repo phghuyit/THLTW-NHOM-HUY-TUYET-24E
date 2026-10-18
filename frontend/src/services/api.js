@@ -10,7 +10,7 @@ const api = axios.create({
   },
 });
 
-// Chỉ đọc token trong trình duyệt, không ảnh hưởng API gọi ở Server Component.
+
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const isAdminRequest = config.url?.startsWith("/admin/");

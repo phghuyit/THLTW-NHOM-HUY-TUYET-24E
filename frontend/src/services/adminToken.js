@@ -1,4 +1,4 @@
-// Token admin được lưu riêng với token khách hàng.
+
 const ADMIN_TOKEN_KEY = "stylerent.admin.token";
 
 export function getAdminToken() {

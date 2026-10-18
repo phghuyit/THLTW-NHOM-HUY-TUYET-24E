@@ -14,7 +14,7 @@ import {
 import { ProductRail } from "@/components/user/ProductGrid";
 import { homeService } from "@/services/homeService";
 
-// Lấy lại dữ liệu ở mỗi lần tải trang để phản ánh thay đổi từ backend.
+
 export const dynamic = "force-dynamic";
 
 function ApiMessage({ failed, emptyText }) {
@@ -33,7 +33,7 @@ function HomeProducts({ result, emptyText }) {
 }
 
 export default async function HomePage() {
-  // Một API lỗi không làm các phần còn lại của trang chủ bị lỗi theo.
+
   const [categories, newArrivals, featured, sale] = await Promise.allSettled([
     homeService.getCategories(),
     homeService.getNewArrivals(),

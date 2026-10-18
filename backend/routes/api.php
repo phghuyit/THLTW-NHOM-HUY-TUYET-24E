@@ -13,7 +13,7 @@ use App\Http\Middleware\CheckAdmin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-//Public
+
 Route::prefix('products')->as('products.')->group(function () {
     Route::get('/', [ProductController::class, 'index'])->name('index');
     Route::get('/{slug}', [ProductController::class, 'show'])->name('show');
@@ -51,7 +51,7 @@ Route::post('/register', [AuthController::class, 'register'])
     ->middleware('throttle:5,1')
     ->name('register');
 
-// Admin
+
 Route::prefix('admin')->as('admin.')->group(function () {
     Route::post('login', [AuthController::class, 'adminLogin'])->middleware('throttle:5,1');
 

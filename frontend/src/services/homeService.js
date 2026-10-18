@@ -1,6 +1,6 @@
 import api from "./api";
 
-// API lỗi sẽ được trang chủ xử lý; không thay bằng sản phẩm mẫu.
+
 async function getList(path, params) {
   const response = await api.get(path, { params });
   const data = response.data.data;

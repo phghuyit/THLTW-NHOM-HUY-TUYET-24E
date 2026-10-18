@@ -93,10 +93,13 @@ $RECYCLE.BIN/
 .agy/
 
 /giaithich/
-# Tai lieu va anh ban giao trang chu
-!/docs/HOMEPAGE_API_REPORT.md
-!/docs/screenshots/
-/docs/screenshots/*
-!/docs/screenshots/homepage-hot.png
-!/docs/screenshots/homepage-sale.png
-!/docs/screenshots/admin-login.png
+
+*.log.*
+*.txt
+/docs/**/*.md
+screenshots/
+screenshot/
+screenshot*.png
+screenshot*.jpg
+screenshot*.jpeg
+screenshot*.webp

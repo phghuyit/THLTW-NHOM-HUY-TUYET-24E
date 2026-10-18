@@ -15,7 +15,7 @@ export const adminAuthService = {
     try {
       await api.post("/admin/logout");
     } catch (error) {
-      // Token đã hết hiệu lực thì vẫn cho thoát khỏi giao diện.
+
       if (![401, 403].includes(error.response?.status)) throw error;
     }
     clearAdminToken();

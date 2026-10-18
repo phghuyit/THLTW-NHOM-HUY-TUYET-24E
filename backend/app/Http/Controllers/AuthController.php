@@ -13,8 +13,8 @@ class AuthController extends Controller
 {
     public function register(RegisterRequest $request)
     {
-        // User tự đăng ký luôn là thành viên; không nhận quyền admin từ form.
-        // Model User đã có cast "hashed" để mã hóa mật khẩu trước khi lưu.
+
+
         $user = User::create([
             ...$request->validated(),
             'role' => 'member',
@@ -29,14 +29,14 @@ class AuthController extends Controller
 
     public function login(LoginInputRequest $request)
     {
-        // Xác thực một lần rồi cấp Sanctum token, không tạo phiên đăng nhập web.
+
         $credentials = $request->validated();
         if (!Auth::once([...$credentials, 'status' => 'active'])) {
             return response()->json([
                 'message' => 'Email hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa.',
             ], 401);
         }
-        /** @var \App\Models\User $user */
+
         $user = Auth::user();
         $user->tokens()->delete();
         $token = $user->createToken('auth_member_token')->plainTextToken;
@@ -50,14 +50,14 @@ class AuthController extends Controller
 
     public function adminLogin(LoginInputRequest $request)
     {
-        // Xác thực một lần rồi cấp Sanctum token, không tạo phiên đăng nhập web.
+
         $credentials = $request->validated();
         if (!Auth::once([...$credentials, 'status' => 'active', 'role' => 'admin'])) {
             return response()->json([
                 'message' => 'Email hoặc mật khẩu không đúng, hoặc tài khoản không có quyền quản trị.'
             ], 401);
         }
-        /** @var \App\Models\User $admin */
+
         $admin = Auth::user();
         $admin->tokens()->delete();
         $adminToken = $admin->createToken('auth_admin_token')->plainTextToken;

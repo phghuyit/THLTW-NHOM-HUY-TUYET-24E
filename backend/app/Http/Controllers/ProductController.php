@@ -16,9 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
+
     public function index(Request $request)
     {
         $request->validate([
@@ -38,7 +37,7 @@ class ProductController extends Controller
 
         if ($request->has('is_sale')) {
             if ($request->boolean('is_sale')) {
-                // Chỉ hiển thị sale khi giá giảm hợp lệ và thấp hơn giá gốc.
+
                 $query->where('is_sale', true)
                     ->where('sale_rental_price', '>', 0)
                     ->whereColumn('sale_rental_price', '<', 'rental_price_per_day');
@@ -63,12 +62,11 @@ class ProductController extends Controller
         return ProductResource::collection($products);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+
+
     public function store(StoreProductRequest $request)
     {
-        //
+
         $validated = $request->validated();
         $sizes = Arr::pull($validated, 'sizes', []);
         $image = Arr::pull($validated, 'images', []);
@@ -83,22 +81,20 @@ class ProductController extends Controller
         return response()->json(new ProductResource($product), 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+
+
     public function show(string $slug)
     {
-        //
+
         $product = Product::with(['category', 'brand', 'images', 'sizes'])->where('slug', $slug)->where('status', 'active')->firstOrFail();
         return response()->json(new ProductResource($product));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+
+
     public function update(UpdateProductRequest $request, Product $product)
     {
-        //
+
         $validated = $request->validated();
         $images = Arr::pull($validated, 'images', []);
         $sizes = Arr::pull($validated, 'sizes', []);
@@ -153,12 +149,11 @@ class ProductController extends Controller
         return response()->json(new ProductResource($product));
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+
+
     public function destroy(Product $product)
     {
-        //
+
         $product->delete();
         return response()->json([
             'message' => 'Chuyển sản phẩm vào thùng rác thành công',
