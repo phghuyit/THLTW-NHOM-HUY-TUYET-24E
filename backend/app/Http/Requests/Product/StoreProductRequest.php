@@ -12,6 +12,15 @@ class StoreProductRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('sale_price') && !$this->has('sale_rental_price')) {
+            $this->merge([
+                'sale_rental_price' => $this->input('sale_price'),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -21,10 +30,12 @@ class StoreProductRequest extends FormRequest
             'thumbnail' => 'required|string|max:255',
             'short_description' => 'nullable|string|max:500',
             'description' => 'nullable|string',
-            'rental_price_per_day' => 'required|numeric|min:0',
+            'rental_price_per_day' => 'required|integer|min:0',
+            'sale_rental_price' => 'nullable|integer|min:0|lte:rental_price_per_day',
             'deposit_rate_percent' => 'required|numeric|min:0',
-            'original_value' => 'required|numeric|min:0',
+            'original_value' => 'required|integer|min:0',
             'is_featured' => 'boolean',
+            'is_sale' => 'nullable|boolean',
             'status' => [Rule::in(['active', 'hidden'])],
             'sizes' => 'required|array|min:1',
             'sizes.*.size' => [
@@ -48,9 +59,12 @@ class StoreProductRequest extends FormRequest
             'short_description' => 'mô tả ngắn',
             'description' => 'mô tả chi tiết',
             'rental_price_per_day' => 'giá thuê theo ngày',
+            'sale_rental_price' => 'giá thuê khuyến mãi',
+            'sale_price' => 'giá khuyến mãi',
             'deposit_rate_percent' => 'tỷ lệ đặt cọc (%)',
             'original_value' => 'giá trị gốc',
             'is_featured' => 'sản phẩm nổi bật',
+            'is_sale' => 'trạng thái giảm giá',
             'status' => 'trạng thái',
             'sizes' => 'danh sách kích cỡ',
             'sizes.*.size' => 'kích cỡ',
@@ -73,15 +87,19 @@ class StoreProductRequest extends FormRequest
             'thumbnail.max' => ':Attribute không được vượt quá :max ký tự.',
             'short_description.max' => ':Attribute không được vượt quá :max ký tự.',
             'rental_price_per_day.required' => 'Vui lòng nhập :attribute.',
-            'rental_price_per_day.numeric' => ':Attribute phải là số.',
+            'rental_price_per_day.integer' => ':Attribute phải là số nguyên (VND).',
             'rental_price_per_day.min' => ':Attribute không được nhỏ hơn :min.',
+            'sale_rental_price.integer' => ':Attribute phải là số nguyên (VND).',
+            'sale_rental_price.min' => ':Attribute không được nhỏ hơn :min.',
+            'sale_rental_price.lte' => ':Attribute không được lớn hơn :other.',
             'deposit_rate_percent.required' => 'Vui lòng nhập :attribute.',
             'deposit_rate_percent.numeric' => ':Attribute phải là số.',
             'deposit_rate_percent.min' => ':Attribute không được nhỏ hơn :min.',
             'original_value.required' => 'Vui lòng nhập :attribute.',
-            'original_value.numeric' => ':Attribute phải là số.',
+            'original_value.integer' => ':Attribute phải là số nguyên (VND).',
             'original_value.min' => ':Attribute không được nhỏ hơn :min.',
             'is_featured.boolean' => ':Attribute phải là true hoặc false.',
+            'is_sale.boolean' => ':Attribute phải là true hoặc false.',
             'status.in' => ':Attribute không hợp lệ, chỉ chấp nhận active hoặc hidden.',
             'sizes.required' => 'Vui lòng chọn ít nhất một :attribute.',
             'sizes.array' => ':Attribute phải là dạng danh sách.',

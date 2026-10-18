@@ -18,9 +18,11 @@ return new class extends Migration
             $table->string('short_description', 500)->nullable();
             $table->longText('description')->nullable();
             $table->decimal('rental_price_per_day', 12, 2)->default(0.00);
+            $table->decimal('sale_rental_price', 12, 2)->nullable();
             $table->integer('deposit_rate_percent')->default(70);
             $table->decimal('original_value', 12, 2)->default(0.00);
             $table->boolean('is_featured')->default(false);
+            $table->boolean('is_sale')->default(false);
             $table->integer('view_count')->default(0);
             $table->enum('status', ['active', 'hidden'])->default('active');
             $table->timestamps();

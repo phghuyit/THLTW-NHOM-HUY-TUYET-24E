@@ -63,30 +63,32 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::get('/{code}', [OrderController::class, 'show'])->name('show');
     });
 
+    Route::prefix('categories')->as('categories.')->group(function () {
+        Route::get('trash', [CategoryController::class, 'trash'])->name('trash');
+        Route::patch('{id}/restore', [CategoryController::class, 'restore'])->name('restore');
+        Route::post('/', [CategoryController::class, 'store'])->name('store');
+        Route::patch('/{category}', [CategoryController::class, 'update'])->name('update');
+        Route::delete('/{category}', [CategoryController::class, 'softDelete'])->name('destroy');
+        Route::delete('/{id}/force', [CategoryController::class, 'forceDelete'])->name('force-delete');
+    });
+
+    Route::prefix('brands')->as('brands.')->group(function () {
+        Route::get('trash', [BrandController::class, 'trash'])->name('trash');
+        Route::patch('{id}/restore', [BrandController::class, 'restore'])->name('restore');
+        Route::post('/', [BrandController::class, 'store'])->name('store');
+        Route::patch('/{brand}', [BrandController::class, 'update'])->name('update');
+        Route::delete('/{brand}', [BrandController::class, 'softDelete'])->name('destroy');
+        Route::delete('/{id}/force', [BrandController::class, 'forceDelete'])->name('force-delete');
+    });
+
+    Route::get('products/trash', [ProductController::class, 'trash'])->name('products.trash');
+    Route::patch('products/{id}/restore', [ProductController::class, 'restore'])->name('products.restore');
+    Route::delete('products/{id}/force', [ProductController::class, 'forceDelete'])->name('products.force-delete');
+    Route::apiResource('products', ProductController::class)->except(['index', 'show']);
+
     Route::middleware(['auth:sanctum', CheckAdmin::class])->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::get('products/trash', [ProductController::class, 'trash'])->name('products.trash');
-        Route::patch('products/{id}/restore', [ProductController::class, 'restore'])->name('products.restore');
-        Route::delete('products/{id}/force', [ProductController::class, 'forceDelete'])->name('products.force-delete');
-        Route::apiResource('products', ProductController::class)->except(['index', 'show']);
 
-        Route::prefix('categories')->as('categories.')->group(function () {
-            Route::get('trash', [CategoryController::class, 'trash'])->name('trash');
-            Route::patch('{id}/restore', [CategoryController::class, 'restore'])->name('restore');
-            Route::post('/', [CategoryController::class, 'store'])->name('store');
-            Route::patch('/{category}', [CategoryController::class, 'update'])->name('update');
-            Route::delete('/{category}', [CategoryController::class, 'softDelete'])->name('destroy');
-            Route::delete('/{id}/force', [CategoryController::class, 'forceDelete'])->name('force-delete');
-        });
-
-        Route::prefix('brands')->as('brands.')->group(function () {
-            Route::get('trash', [BrandController::class, 'trash'])->name('trash');
-            Route::patch('{id}/restore', [BrandController::class, 'restore'])->name('restore');
-            Route::post('/', [BrandController::class, 'store'])->name('store');
-            Route::patch('/{brand}', [BrandController::class, 'update'])->name('update');
-            Route::delete('/{brand}', [BrandController::class, 'softDelete'])->name('destroy');
-            Route::delete('/{id}/force', [BrandController::class, 'forceDelete'])->name('force-delete');
-        });
         Route::prefix('users')->as('users.')->group(function () {
             Route::get('trash', [UserController::class, 'trash'])->name('trash');
             Route::patch('{id}/restore', [UserController::class, 'restore'])->name('restore');
