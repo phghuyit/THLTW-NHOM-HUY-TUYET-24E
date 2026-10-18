@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { productService } from "@/services/productService";
 import { categoryService } from "@/services/categoryService";
 import { brandService } from "@/services/brandService";
-import { PageHeader, Toolbar } from "@/components/ui/PageParts";
+import { PageHeader } from "@/components/ui/PageParts";
 import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Overlay";
 import { StatusChip } from "@/components/ui/Primitives";
@@ -16,9 +16,6 @@ export default function AdminProductsPage() {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -96,25 +93,6 @@ export default function AdminProductsPage() {
       await loadData();
     }
   };
-
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (categoryFilter !== "all") {
-        const match =
-          String(p.category_id) === String(categoryFilter) ||
-          p.categorySlug === categoryFilter;
-        if (!match) return false;
-      }
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const match =
-          p.name?.toLowerCase().includes(q) ||
-          p.sku?.toLowerCase().includes(q);
-        if (!match) return false;
-      }
-      return true;
-    });
-  }, [products, categoryFilter, search]);
 
   const columns = [
     {
@@ -203,25 +181,9 @@ export default function AdminProductsPage() {
         }
       />
 
-      <Toolbar
-        search={search}
-        onSearch={setSearch}
-        searchPlaceholder="Tìm theo tên hoặc mã..."
-        quickFilters={[
-          { key: "all", label: "Tất cả", count: products.length },
-          ...categories.map((c) => ({
-            key: c.slug || String(c.id),
-            label: c.name,
-          })),
-        ]}
-        activeQuick={categoryFilter}
-        onQuickChange={setCategoryFilter}
-        resultLabel={`${filteredProducts.length} sản phẩm`}
-      />
-
       <DataTable
         columns={columns}
-        rows={filteredProducts}
+        rows={products}
         getKey={(p) => p.id}
         loading={loading}
       />

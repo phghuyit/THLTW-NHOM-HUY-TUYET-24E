@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { IconBox, IconList, IconStore, IconTag, IconTruck } from "@/components/ui/Icons";
+import { IconBox, IconList, IconStore, IconTag, IconTrash, IconTruck } from "@/components/ui/Icons";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
@@ -14,6 +14,7 @@ export default function AdminSidebar() {
     { label: "Đơn hàng", href: "/admin/orders", icon: <IconTruck width={16} height={16} /> },
     { label: "Danh mục", href: "/admin/categories", icon: <IconList width={16} height={16} /> },
     { label: "Thương hiệu", href: "/admin/brands", icon: <IconBox width={16} height={16} /> },
+    { label: "Thùng rác", href: "/admin/trash", icon: <IconTrash width={16} height={16} /> },
   ];
 
   return (
