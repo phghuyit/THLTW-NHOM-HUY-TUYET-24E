@@ -5,18 +5,36 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
+use App\Models\Product;
 use App\Http\Resources\CategoryResource;
 use Illuminate\Validation\Rule;
+use Illuminate\Http\Request;
 use Str;
 
 class CategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::where('status', 'active')
-            ->orderBy('parent_id')
-            ->orderBy('name')
-            ->paginate(2);
+        $request->validate([
+            'per_page' => 'sometimes|integer|min:1|max:100',
+            'has_products' => 'sometimes|boolean',
+        ]);
+
+        $query = Category::where('status', 'active')
+            ->withCount(['products' => fn ($products) => $products->active()]);
+
+        if ($request->boolean('has_products')) {
+            $query->whereHas('products', fn ($products) => $products->active());
+        }
+
+        // Dùng ảnh một sản phẩm đang hoạt động làm ảnh dự phòng cho danh mục.
+        $query->addSelect(['preview_image' => Product::select('thumbnail')
+            ->whereColumn('category_id', 'categories.id')
+            ->active()->latest()->orderByDesc('id')->limit(1)]);
+
+        $categories = $query->orderBy('parent_id')->orderBy('id')
+            ->paginate($request->integer('per_page', 12))->withQueryString();
+
         return CategoryResource::collection($categories);
     }
 

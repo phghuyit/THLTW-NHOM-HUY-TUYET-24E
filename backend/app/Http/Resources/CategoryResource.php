@@ -22,6 +22,8 @@ class CategoryResource extends JsonResource
             'image' => $this->image,
             'description' => $this->description,
             'status' => $this->status,
+            'products_count' => $this->whenCounted('products'),
+            'preview_image' => $this->whenHas('preview_image'),
         ];
     }
 }

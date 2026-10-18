@@ -5,16 +5,16 @@ let mockCategories = [...CATEGORIES];
 
 export const categoryService = {
   async getCategories() {
-    try {
-      const res = await api.get("/categories");
-      const data = res.data.data || res.data;
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-      return [...mockCategories];
-    } catch {
-      return [...mockCategories];
-    }
+    const categories = [];
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const res = await api.get("/categories", { params: { per_page: 100, page } });
+      categories.push(...res.data.data);
+      lastPage = res.data.meta?.last_page || 1;
+      page += 1;
+    } while (page <= lastPage);
+    return categories;
   },
 
   async createCategory(payload) {

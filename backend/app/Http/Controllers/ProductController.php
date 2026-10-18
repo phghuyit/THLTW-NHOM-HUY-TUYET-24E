@@ -21,15 +21,45 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        //
-        $query = Product::with(['category:id,name', 'brand:id,name'])
-            ->active();
+        $request->validate([
+            'is_featured' => 'sometimes|boolean',
+            'is_sale' => 'sometimes|boolean',
+            'category' => 'nullable|string|max:120',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+        ]);
 
-        if ($request->has('is_sale')) {
-            $query->where('is_sale', $request->boolean('is_sale'));
+        $query = Product::with(['category', 'brand', 'images'])
+            ->active()
+            ->whereHas('category', fn ($category) => $category->where('status', 'active'));
+
+        if ($request->has('is_featured')) {
+            $query->where('is_featured', $request->boolean('is_featured'));
         }
 
-        $products = $query->latest()->paginate(12);
+        if ($request->has('is_sale')) {
+            if ($request->boolean('is_sale')) {
+                // Chỉ hiển thị sale khi giá giảm hợp lệ và thấp hơn giá gốc.
+                $query->where('is_sale', true)
+                    ->where('sale_rental_price', '>', 0)
+                    ->whereColumn('sale_rental_price', '<', 'rental_price_per_day');
+            } else {
+                $query->where('is_sale', false);
+            }
+        }
+
+        if ($request->filled('category')) {
+            $category = $request->string('category')->toString();
+            $query->whereHas('category', function ($query) use ($category) {
+                $query->where('slug', $category);
+                if (ctype_digit($category)) {
+                    $query->orWhere('id', (int) $category);
+                }
+            });
+        }
+
+        $products = $query->latest()->orderByDesc('id')
+            ->paginate($request->integer('per_page', 12))->withQueryString();
+
         return ProductResource::collection($products);
     }
 

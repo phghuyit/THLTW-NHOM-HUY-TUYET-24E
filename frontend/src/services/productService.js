@@ -3,16 +3,16 @@ import { PRODUCTS } from "@/data/products";
 
 export const productService = {
   async getProducts(params = {}) {
-    try {
-      const res = await api.get("/products", { params });
-      const data = res.data.data || res.data;
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-      return PRODUCTS;
-    } catch {
-      return PRODUCTS;
-    }
+    const products = [];
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const res = await api.get("/products", { params: { ...params, per_page: 100, page } });
+      products.push(...res.data.data);
+      lastPage = res.data.meta?.last_page || 1;
+      page += 1;
+    } while (page <= lastPage);
+    return products;
   },
 
   async getProductBySlug(slug) {

@@ -1,25 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMounted, useScrollY } from "@/hooks";
 import { cn } from "@/lib/utils";
 import {
   IconBag,
-  IconHeart,
   IconSearch,
   IconUser,
 } from "@/components/ui/Icons";
 import { useCart } from "@/store/cart";
-import { useWishlist } from "@/store/wishlist";
+import { useAuth } from "@/store/auth";
+import { authErrorMessage } from "@/services/authService";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const scrollY = useScrollY();
   const mounted = useMounted();
   const cart = useCart();
-  const wishlist = useWishlist();
+  const { user, loading: authLoading, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [authError, setAuthError] = useState("");
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    setAuthError("");
+    try {
+      await logout();
+    } catch (error) {
+      setAuthError(authErrorMessage(error));
+    } finally {
+      setLoggingOut(false);
+    }
+  }
   const [keyword, setKeyword] = useState("");
 
   const overHero = pathname === "/";
@@ -85,7 +100,7 @@ export default function Navbar() {
             onSubmit={(e) => {
               e.preventDefault();
               if (keyword.trim()) {
-                window.location.href = `/products?search=${encodeURIComponent(keyword.trim())}`;
+                router.push(`/products?search=${encodeURIComponent(keyword.trim())}`);
               }
             }}
             className="relative hidden sm:block"
@@ -128,24 +143,24 @@ export default function Navbar() {
             )}
           </Link>
 
-          <Link
-            href="/login"
-            className={cn(
-              "btn btn-sm gap-1.5",
-              solid
-                ? "btn-outline"
-                : "border-canvas/60 text-canvas hover:bg-canvas hover:text-ink",
-            )}
-          >
-            <IconUser width={14} height={14} />
-            Đăng nhập
-          </Link>
-
-          <Link href="/admin" className="btn btn-sm">
-            Admin
-          </Link>
+          {user ? (
+            <div className="flex items-center gap-2">
+              <span className={cn("hidden max-w-24 truncate text-xs sm:block", solid ? "text-ink" : "text-canvas")} title={user.name || user.fullname}>
+                {user.name || user.fullname}
+              </span>
+              <button type="button" onClick={handleLogout} disabled={loggingOut} className={cn("btn btn-sm disabled:opacity-60", solid ? "btn-outline" : "border-canvas/60 text-canvas")}>
+                {loggingOut ? "Đang thoát..." : "Đăng xuất"}
+              </button>
+            </div>
+          ) : (
+            <Link href="/login" className={cn("btn btn-sm gap-1.5", solid ? "btn-outline" : "border-canvas/60 text-canvas hover:bg-canvas hover:text-ink")}>
+              <IconUser width={14} height={14} />
+              {authLoading ? "Đang kiểm tra..." : "Đăng nhập"}
+            </Link>
+          )}
         </div>
       </div>
+      {authError && <p role="alert" className="shell pb-3 text-sm text-danger">{authError}</p>}
     </header>
   );
 }

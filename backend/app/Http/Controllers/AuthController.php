@@ -11,12 +11,29 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
+    public function register(RegisterRequest $request)
+    {
+        // User tự đăng ký luôn là thành viên; không nhận quyền admin từ form.
+        // Model User đã có cast "hashed" để mã hóa mật khẩu trước khi lưu.
+        $user = User::create([
+            ...$request->validated(),
+            'role' => 'member',
+            'status' => 'active',
+        ]);
+
+        return response()->json([
+            'message' => 'Đăng ký thành công. Bạn có thể đăng nhập ngay.',
+            'data' => new LoginUserResource($user),
+        ], 201);
+    }
+
     public function login(LoginInputRequest $request)
     {
+        // Xác thực một lần rồi cấp Sanctum token, không tạo phiên đăng nhập web.
         $credentials = $request->validated();
-        if (!Auth::attempt([...$credentials, 'status' => 'active'])) {
+        if (!Auth::once([...$credentials, 'status' => 'active'])) {
             return response()->json([
-                'message' => 'Email, mat khau khong dung hoac chua duoc kich hoat',
+                'message' => 'Email hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa.',
             ], 401);
         }
         /** @var \App\Models\User $user */
@@ -25,7 +42,7 @@ class AuthController extends Controller
         $token = $user->createToken('auth_member_token')->plainTextToken;
 
         return response()->json([
-            'message' => "Dang nhap tai khoan thanh cong",
+            'message' => "Đăng nhập thành công.",
             'token' => $token,
             'data' => new LoginUserResource($user),
         ], 200);
@@ -33,10 +50,11 @@ class AuthController extends Controller
 
     public function adminLogin(LoginInputRequest $request)
     {
+        // Xác thực một lần rồi cấp Sanctum token, không tạo phiên đăng nhập web.
         $credentials = $request->validated();
-        if (!Auth::attempt([...$credentials, 'status' => 'active', 'role' => 'admin'])) {
+        if (!Auth::once([...$credentials, 'status' => 'active', 'role' => 'admin'])) {
             return response()->json([
-                'message' => 'Tai khoan khong co quyen han dang nhap vui long quay lai trang nguoi dung'
+                'message' => 'Email hoặc mật khẩu không đúng, hoặc tài khoản không có quyền quản trị.'
             ], 401);
         }
         /** @var \App\Models\User $admin */
@@ -45,7 +63,7 @@ class AuthController extends Controller
         $adminToken = $admin->createToken('auth_admin_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Dang nhap tai khoan quan tri vien thanh cong',
+            'message' => 'Đăng nhập quản trị thành công.',
             'token' => $adminToken,
             'data' => new LoginUserResource($admin)
         ], 200);
@@ -54,6 +72,6 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $request->user()?->currentAccessToken()?->delete();
-        return response()->json(['message' => 'Dang xuat thanh cong'], 200);
+        return response()->json(['message' => 'Đăng xuất thành công.'], 200);
     }
 }

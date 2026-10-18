@@ -14,9 +14,32 @@ import {
 import { ProductRail } from "@/components/user/ProductGrid";
 import { homeService } from "@/services/homeService";
 
+// Lấy lại dữ liệu ở mỗi lần tải trang để phản ánh thay đổi từ backend.
+export const dynamic = "force-dynamic";
+
+function ApiMessage({ failed, emptyText }) {
+  return (
+    <p role={failed ? "alert" : "status"} className="border border-line bg-surface px-6 py-10 text-center text-sm text-ink-2">
+      {failed ? "Chưa tải được dữ liệu. Bạn vui lòng thử lại sau." : emptyText}
+    </p>
+  );
+}
+
+function HomeProducts({ result, emptyText }) {
+  if (result.status === "rejected" || result.value.length === 0) {
+    return <ApiMessage failed={result.status === "rejected"} emptyText={emptyText} />;
+  }
+  return <ProductRail products={result.value} />;
+}
+
 export default async function HomePage() {
-  const newArrivals = await homeService.getNewArrivals();
-  const trending = await homeService.getTrendingProducts();
+  // Một API lỗi không làm các phần còn lại của trang chủ bị lỗi theo.
+  const [categories, newArrivals, featured, sale] = await Promise.allSettled([
+    homeService.getCategories(),
+    homeService.getNewArrivals(),
+    homeService.getFeaturedProducts(),
+    homeService.getSaleProducts(),
+  ]);
 
   return (
     <>
@@ -30,7 +53,11 @@ export default async function HomePage() {
           title="Thuê theo danh mục"
           link={{ label: "Toàn bộ bộ sưu tập", href: "/products" }}
         />
-        <CategoryStrip />
+        {categories.status === "fulfilled" && categories.value.length > 0 ? (
+          <CategoryStrip categories={categories.value} />
+        ) : (
+          <ApiMessage failed={categories.status === "rejected"} emptyText="Chưa có danh mục đang có sản phẩm cho thuê." />
+        )}
       </section>
 
       <section className="shell py-20 md:py-28">
@@ -39,18 +66,27 @@ export default async function HomePage() {
           title="Mới về"
           link={{ label: "Xem tất cả", href: "/products" }}
         />
-        <ProductRail products={newArrivals} />
+        <HomeProducts result={newArrivals} emptyText="Chưa có sản phẩm mới." />
       </section>
 
       <section className="bg-warm py-20 md:py-28">
         <div className="shell">
           <SectionHead
-            eyebrow="Khách quay lại nhiều nhất"
-            title="Đang được thuê nhiều"
-            link={{ label: "Xem bảng xếp hạng", href: "/products" }}
+            eyebrow="Gợi ý từ StyleRent"
+            title="Sản phẩm hot"
+            link={{ label: "Xem tất cả sản phẩm hot", href: "/products?is_featured=1" }}
           />
-          <ProductRail products={trending} />
+          <HomeProducts result={featured} emptyText="Chưa có sản phẩm nổi bật." />
         </div>
+      </section>
+
+      <section className="shell py-20 md:py-28">
+        <SectionHead
+          eyebrow="Ưu đãi đang có"
+          title="Sản phẩm sale"
+          link={{ label: "Xem tất cả sản phẩm sale", href: "/products?is_sale=1" }}
+        />
+        <HomeProducts result={sale} emptyText="Hiện chưa có sản phẩm khuyến mãi." />
       </section>
 
       <section className="shell py-20 md:py-28">
