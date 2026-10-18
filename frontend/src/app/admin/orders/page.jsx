@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { orderService } from "@/services/orderService";
-import { PageHeader, Toolbar } from "@/components/ui/PageParts";
+import { PageHeader } from "@/components/ui/PageParts";
 import { DataTable } from "@/components/ui/DataTable";
 import { Drawer } from "@/components/ui/Overlay";
 import { OrderStatusChip } from "@/components/admin/Chips";
@@ -13,8 +13,6 @@ import { ORDER_STATUS } from "@/lib/order-status";
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [previewOrder, setPreviewOrder] = useState(null);
 
   const loadOrders = async () => {
@@ -35,18 +33,6 @@ export default function AdminOrdersPage() {
       setPreviewOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
     }
   };
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
-      if (statusFilter !== "all" && o.status !== statusFilter) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const hay = `${o.code} ${o.receiverName} ${o.receiverPhone}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [orders, statusFilter, search]);
 
   const columns = [
     {
@@ -127,28 +113,10 @@ export default function AdminOrdersPage() {
         description="Toàn bộ đơn thuê trang phục của khách hàng."
       />
 
-      <Toolbar
-        search={search}
-        onSearch={setSearch}
-        searchPlaceholder="Tìm mã đơn, tên khách, số điện thoại..."
-        quickFilters={[
-          { key: "all", label: "Tất cả", count: orders.length },
-          { key: "pending_payment", label: "Chờ thanh toán" },
-          { key: "confirmed", label: "Đã xác nhận" },
-          { key: "ready", label: "Sẵn sàng" },
-          { key: "in_use", label: "Đang thuê" },
-          { key: "overdue", label: "Quá hạn" },
-          { key: "completed", label: "Hoàn tất" },
-        ]}
-        activeQuick={statusFilter}
-        onQuickChange={setStatusFilter}
-        resultLabel={`${filteredOrders.length} đơn hàng`}
-      />
-
       <DataTable
         columns={columns}
-        rows={filteredOrders}
-        getKey={(o) => o.code}
+        rows={orders}
+        getKey={(o) => o.code || o.id}
         loading={loading}
       />
 

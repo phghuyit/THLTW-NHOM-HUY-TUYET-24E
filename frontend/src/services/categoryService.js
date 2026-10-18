@@ -51,4 +51,31 @@ export const categoryService = {
       return { success: true };
     }
   },
+
+  async getTrashCategories() {
+    try {
+      const res = await api.get("/admin/categories/trash");
+      return res.data.data || res.data;
+    } catch {
+      return [];
+    }
+  },
+
+  async restoreCategory(id) {
+    try {
+      const res = await api.patch(`/admin/categories/${id}/restore`);
+      return res.data;
+    } catch {
+      return { success: true };
+    }
+  },
+
+  async forceDeleteCategory(id) {
+    try {
+      const res = await api.delete(`/admin/categories/${id}/force`);
+      return res.data;
+    } catch {
+      return { success: true };
+    }
+  },
 };

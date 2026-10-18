@@ -2,29 +2,59 @@
 
 namespace App\Http\Requests\User;
 
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+
 class RegisterRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'fullname' => ['required','string','max:255'],
-            'email'=>['required','email','max:255','unique:users,email'],
-            'password'=>['required','string','min:8','confirmed'],
+            'fullname' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'phone' => ['nullable', 'string', 'digits:11'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'avatar' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'fullname' => 'họ và tên',
+            'email' => 'địa chỉ email',
+            'password' => 'mật khẩu',
+            'phone' => 'số điện thoại',
+            'address' => 'địa chỉ',
+            'avatar' => 'ảnh đại diện',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'fullname.required' => 'Vui lòng nhập :attribute.',
+            'fullname.string' => ':Attribute phải là chuỗi ký tự.',
+            'fullname.max' => ':Attribute không được vượt quá :max ký tự.',
+            'email.required' => 'Vui lòng nhập :attribute.',
+            'email.email' => ':Attribute không đúng định dạng email.',
+            'email.max' => ':Attribute không được vượt quá :max ký tự.',
+            'email.unique' => ':Attribute đã tồn tại trên hệ thống.',
+            'password.required' => 'Vui lòng nhập :attribute.',
+            'password.string' => ':Attribute phải là chuỗi ký tự.',
+            'password.min' => ':Attribute phải có ít nhất :min ký tự.',
+            'password.confirmed' => 'Xác nhận :attribute không khớp.',
+            'phone.string' => ':Attribute phải là chuỗi ký tự.',
+            'phone.digits' => ':Attribute chỉ được 11 ký tự.',
+            'address.string' => ':Attribute phải là chuỗi ký tự.',
+            'address.max' => ':Attribute không được vượt quá :max ký tự.',
+            'avatar.string' => ':Attribute phải là chuỗi ký tự.',
+            'avatar.max' => ':Attribute không được vượt quá :max ký tự.',
         ];
     }
 }

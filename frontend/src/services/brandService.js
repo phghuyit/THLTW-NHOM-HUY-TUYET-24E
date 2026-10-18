@@ -51,4 +51,31 @@ export const brandService = {
       return { success: true };
     }
   },
+
+  async getTrashBrands() {
+    try {
+      const res = await api.get("/admin/brands/trash");
+      return res.data.data || res.data;
+    } catch {
+      return [];
+    }
+  },
+
+  async restoreBrand(id) {
+    try {
+      const res = await api.patch(`/admin/brands/${id}/restore`);
+      return res.data;
+    } catch {
+      return { success: true };
+    }
+  },
+
+  async forceDeleteBrand(id) {
+    try {
+      const res = await api.delete(`/admin/brands/${id}/force`);
+      return res.data;
+    } catch {
+      return { success: true };
+    }
+  },
 };

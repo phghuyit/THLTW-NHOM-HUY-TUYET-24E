@@ -24,6 +24,9 @@
 /backend/vendor
 Homestead.json
 Homestead.yaml
+/backend/.phpstorm.meta.php
+/backend/_ide_helper.php
+/backend/_ide_helper_models.php
 /docs/*
 # Laravel sinh ra lúc chạy. Bình thường được che bởi các .gitignore lồng trong
 # backend/, nhưng những file đó chỉ tồn tại trên branch đã có commit backend.
