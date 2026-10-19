@@ -5,13 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-/**
- * @property int $id
- * @property string $order_code
- * @property int $user_id
- * @property string $status
- * @mixin \Eloquent
- */
+
+
 class Order extends Model
 {
     use SoftDeletes;

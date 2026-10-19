@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Http\Resources\ProductResource;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductSize;
@@ -16,29 +17,64 @@ use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
+
     public function index(Request $request)
     {
-        //
-        $query = Product::with(['category:id,name', 'brand:id,name'])
-            ->active();
+        $request->validate([
+            'is_featured' => 'sometimes|boolean',
+            'is_sale' => 'sometimes|boolean',
+            'category' => 'nullable|string|max:120',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+        ]);
 
-        if ($request->has('is_sale')) {
-            $query->where('is_sale', $request->boolean('is_sale'));
+        $query = Product::with(['category', 'brand', 'images'])
+            ->active()
+            ->whereHas('category', fn($category) => $category->where('status', 'active'));
+
+        if ($request->has('is_featured')) {
+            $query->where('is_featured', $request->boolean('is_featured'));
         }
 
-        $products = $query->latest()->paginate(12);
+        if ($request->has('is_sale')) {
+            if ($request->boolean('is_sale')) {
+
+                $query->where('is_sale', true)
+                    ->where('sale_rental_price', '>', 0)
+                    ->whereColumn('sale_rental_price', '<', 'rental_price_per_day');
+            } else {
+                $query->where('is_sale', false);
+            }
+        }
+
+        if ($request->filled('category')) {
+            $category = (string) $request->input('category');
+
+            $categories = Category::where('slug', $category);
+
+            if (ctype_digit($category)) {
+                $categories->orWhere('id', (int) $category);
+            }
+
+            $categoryIds = [];
+
+            foreach ($categories->get() as $item) {
+                $categoryIds[] = $item->id;
+            }
+
+            $query->whereIn('category_id', $categoryIds);
+        }
+        $products = $query->latest()->orderByDesc('id')
+            ->paginate($request->integer('per_page', 12))->withQueryString();
+
         return ProductResource::collection($products);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+
+
     public function store(StoreProductRequest $request)
     {
-        //
+
         $validated = $request->validated();
         $sizes = Arr::pull($validated, 'sizes', []);
         $image = Arr::pull($validated, 'images', []);
@@ -53,28 +89,27 @@ class ProductController extends Controller
         return response()->json(new ProductResource($product), 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+
+
     public function show(string $slug)
     {
-        //
+
         $product = Product::with(['category', 'brand', 'images', 'sizes'])->where('slug', $slug)->where('status', 'active')->firstOrFail();
         return response()->json(new ProductResource($product));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+
+
     public function update(UpdateProductRequest $request, Product $product)
     {
-        //
+
         $validated = $request->validated();
         $images = Arr::pull($validated, 'images', []);
         $sizes = Arr::pull($validated, 'sizes', []);
         if (isset($validated['name'])) {
             $validated['slug'] = Str::slug($validated['name']);
-        };
+        }
+        ;
         $product = DB::transaction(function () use ($validated, $images, $sizes, $product) {
             $product->update($validated);
             $now = now();
@@ -86,7 +121,7 @@ class ProductController extends Controller
                 foreach ($images as $index => $image) {
                     $imagePayload[] = [
                         'product_id' => $product->id,
-                        'image_url'  => $image['image_url'],
+                        'image_url' => $image['image_url'],
                         'sort_order' => $image['sort_order'] ?? $index,
                     ];
                 }
@@ -98,12 +133,12 @@ class ProductController extends Controller
                 $payLoadSize = [];
                 foreach ($sizes as $size) {
                     $payLoadSize[] = [
-                        'product_id'     => $product->id,
-                        'size'           => $size['size'],
+                        'product_id' => $product->id,
+                        'size' => $size['size'],
                         'stock_quantity' => $size['stock_quantity'],
-                        'deleted_at'     => null,
-                        'created_at'     => $now,
-                        'updated_at'     => $now,
+                        'deleted_at' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
                     ];
                     $activeSize[] = $size['size'];
                 }
@@ -123,12 +158,11 @@ class ProductController extends Controller
         return response()->json(new ProductResource($product));
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+
+
     public function destroy(Product $product)
     {
-        //
+
         $product->delete();
         return response()->json([
             'message' => 'Chuyển sản phẩm vào thùng rác thành công',

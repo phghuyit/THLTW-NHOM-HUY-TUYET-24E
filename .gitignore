@@ -93,3 +93,13 @@ $RECYCLE.BIN/
 .agy/
 
 /giaithich/
+
+*.log.*
+*.txt
+/docs/**/*.md
+screenshots/
+screenshot/
+screenshot*.png
+screenshot*.jpg
+screenshot*.jpeg
+screenshot*.webp
