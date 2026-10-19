@@ -94,3 +94,13 @@ $RECYCLE.BIN/
 
 /giaithich/
 /fashion-rental-web/
+
+*.log.*
+*.txt
+/docs/**/*.md
+screenshots/
+screenshot/
+screenshot*.png
+screenshot*.jpg
+screenshot*.jpeg
+screenshot*.webp

@@ -28,6 +28,7 @@ function ProductsContent() {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedBrands, setSelectedBrands] = useState([]);
@@ -543,6 +544,11 @@ function ProductsContent() {
       </Drawer>
     </div>
   );
+}
+
+function ProductsRoute() {
+  const searchParams = useSearchParams();
+  return <ProductsView key={searchParams.toString()} />;
 }
 
 export default function ProductsPage() {

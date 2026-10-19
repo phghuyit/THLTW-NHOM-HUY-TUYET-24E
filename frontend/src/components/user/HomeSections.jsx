@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ProductMedia } from "./ProductMedia";
 import { IconArrowRight } from "@/components/ui/Icons";
 import { Reveal, Stars } from "@/components/ui/Primitives";
-import { CATEGORIES, OCCASIONS } from "@/data/catalog";
+import { OCCASIONS } from "@/data/catalog";
 import { EDITORIAL, HOW_IT_WORKS, LOOKBOOK, MARQUEE_WORDS, WHY_RENT } from "@/data/content";
 import { getProduct } from "@/data/products";
 import { FEATURED_REVIEWS } from "@/data/reviews";
@@ -59,37 +59,33 @@ export function Marquee() {
   );
 }
 
-export function CategoryStrip() {
-  const picks = [
-    { slug: "ao-dai", product: "ao-dai-cach-tan-do-theu-sen", span: "md:col-span-5" },
-    { slug: "dam-da-hoi", product: "dam-da-hoi-satin-midnight", span: "md:col-span-3" },
-    { slug: "vay-cuoi", product: "vay-cuoi-ren-phap-tay-phong", span: "md:col-span-4" },
-    { slug: "vest-nam", product: "vest-nam-navy-may-do", span: "md:col-span-4" },
-    { slug: "do-bieu-dien", product: "do-bieu-dien-anh-kim", span: "md:col-span-4" },
-    { slug: "tui-clutch", product: "clutch-ngoc-trai-da-tiec", span: "md:col-span-4" },
-  ];
+export function CategoryStrip({ categories = [] }) {
+
+  const spans = ["md:col-span-5", "md:col-span-3", "md:col-span-4"];
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-12">
-      {picks.map((pick, i) => {
-        const category = CATEGORIES.find((c) => c.slug === pick.slug);
-        const product = getProduct(pick.product);
-        if (!category || !product) return null;
-        return (
-          <Reveal key={pick.slug} as="div" delay={i * 70} className={cn("group", pick.span)}>
-            <Link href={`/products?category=${category.slug}`} className="block">
-              <ProductMedia image={product.images[i % product.images.length]} ratio={i < 2 ? "4/5" : "3/4"} />
-              <div className="flex items-baseline justify-between gap-4 pt-4">
-                <h3 className="display-4">{category.name}</h3>
-                <span className="text-[11.5px] uppercase tracking-[0.12em] text-ink-3 transition-transform duration-500 ease-luxe group-hover:translate-x-1">
-                  Xem →
-                </span>
-              </div>
+      {categories.map((category, i) => (
+        <Reveal key={category.id} as="div" delay={i * 70} className={cn("group", spans[i] || "md:col-span-4")}>
+          <Link href={`/products?category=${encodeURIComponent(category.slug)}`} className="block">
+            <ProductMedia
+              image={category.preview_image || category.image}
+              alt={category.name}
+              ratio={i < 2 ? "4/5" : "3/4"}
+            />
+            <div className="flex items-baseline justify-between gap-4 pt-4">
+              <h3 className="display-4">{category.name}</h3>
+              <span className="text-[11.5px] uppercase tracking-[0.12em] text-ink-3 transition-transform duration-500 ease-luxe group-hover:translate-x-1">
+                Xem →
+              </span>
+            </div>
+            <p className="mt-1.5 text-[12px] text-ink-3">{category.products_count} sản phẩm</p>
+            {category.description && (
               <p className="mt-1.5 max-w-[46ch] text-[13px] leading-relaxed text-ink-2">{category.description}</p>
-            </Link>
-          </Reveal>
-        );
-      })}
+            )}
+          </Link>
+        </Reveal>
+      ))}
     </div>
   );
 }

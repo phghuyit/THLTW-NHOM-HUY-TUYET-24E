@@ -1,5 +1,6 @@
 "use client";
 
+import { AuthProvider } from "@/store/auth";
 import { ToastProvider } from "@/components/ui/Toast";
 import { CartProvider } from "@/store/cart";
 import { RentalDatesProvider } from "@/store/rentalDates";
@@ -10,7 +11,7 @@ export function Providers({ children }) {
     <ToastProvider>
       <RentalDatesProvider>
         <WishlistProvider>
-          <CartProvider>{children}</CartProvider>
+          <CartProvider><AuthProvider>{children}</AuthProvider></CartProvider>
         </WishlistProvider>
       </RentalDatesProvider>
     </ToastProvider>

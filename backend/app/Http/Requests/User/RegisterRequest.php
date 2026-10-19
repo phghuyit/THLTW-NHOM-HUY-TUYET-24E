@@ -16,8 +16,8 @@ class RegisterRequest extends FormRequest
         return [
             'fullname' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'phone' => ['nullable', 'string', 'digits:11'],
+            'password' => ['required', 'string', 'min:8', 'max:256', 'confirmed'],
+            'phone' => ['nullable', 'string', 'digits_between:10,11'],
             'address' => ['nullable', 'string', 'max:255'],
             'avatar' => ['nullable', 'string', 'max:255'],
         ];
@@ -48,9 +48,10 @@ class RegisterRequest extends FormRequest
             'password.required' => 'Vui lòng nhập :attribute.',
             'password.string' => ':Attribute phải là chuỗi ký tự.',
             'password.min' => ':Attribute phải có ít nhất :min ký tự.',
+            'password.max' => ':Attribute không được vượt quá :max ký tự.',
             'password.confirmed' => 'Xác nhận :attribute không khớp.',
             'phone.string' => ':Attribute phải là chuỗi ký tự.',
-            'phone.digits' => ':Attribute chỉ được 11 ký tự.',
+            'phone.digits_between' => ':Attribute phải gồm 10 hoặc 11 chữ số.',
             'address.string' => ':Attribute phải là chuỗi ký tự.',
             'address.max' => ':Attribute không được vượt quá :max ký tự.',
             'avatar.string' => ':Attribute phải là chuỗi ký tự.',
