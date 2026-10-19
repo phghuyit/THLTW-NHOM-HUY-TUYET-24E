@@ -1,67 +1,24 @@
 import api from "./api";
-import { PRODUCTS } from "@/data/products";
-import { CATEGORIES } from "@/data/catalog";
+
+
+async function getList(path, params) {
+  const response = await api.get(path, { params });
+  const data = response.data.data;
+  if (!Array.isArray(data)) throw new Error("Dữ liệu API không hợp lệ");
+  return data;
+}
 
 export const homeService = {
-  async getBanners() {
-    try {
-      const res = await api.get("/banners");
-      return res.data.data || res.data;
-    } catch {
-      return [];
-    }
+  getNewArrivals() {
+    return getList("/products", { per_page: 4 });
   },
-
-  async getNewArrivals() {
-    try {
-      const res = await api.get("/products");
-      const list = res.data.data || res.data;
-      if (Array.isArray(list) && list.length > 0) {
-        const filtered = list.filter((p) => p.isNew || p.is_new);
-        return filtered.length > 0 ? filtered.slice(0, 4) : list.slice(0, 4);
-      }
-      return PRODUCTS.filter((p) => p.isNew).slice(0, 4);
-    } catch {
-      return PRODUCTS.filter((p) => p.isNew).slice(0, 4);
-    }
+  getFeaturedProducts() {
+    return getList("/products", { is_featured: 1, per_page: 4 });
   },
-
-  async getFeaturedProducts() {
-    try {
-      const res = await api.get("/products");
-      const list = res.data.data || res.data;
-      if (Array.isArray(list) && list.length > 0) {
-        return list.filter((p) => p.is_featured);
-      }
-      return PRODUCTS.filter((p) => p.is_featured);
-    } catch {
-      return PRODUCTS.filter((p) => p.is_featured);
-    }
+  getSaleProducts() {
+    return getList("/products", { is_sale: 1, per_page: 4 });
   },
-
-  async getTrendingProducts() {
-    try {
-      const res = await api.get("/products");
-      const list = res.data.data || res.data;
-      if (Array.isArray(list) && list.length > 0) {
-        return list.slice(0, 4);
-      }
-      return [...PRODUCTS].sort((a, b) => b.rentalCount - a.rentalCount).slice(0, 4);
-    } catch {
-      return [...PRODUCTS].sort((a, b) => b.rentalCount - a.rentalCount).slice(0, 4);
-    }
-  },
-
-  async getCategories() {
-    try {
-      const res = await api.get("/categories");
-      const list = res.data.data || res.data;
-      if (Array.isArray(list) && list.length > 0) {
-        return list;
-      }
-      return CATEGORIES;
-    } catch {
-      return CATEGORIES;
-    }
+  getCategories() {
+    return getList("/categories", { has_products: 1, per_page: 6 });
   },
 };

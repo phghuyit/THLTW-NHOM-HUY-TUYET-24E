@@ -49,7 +49,7 @@ export function ProductDetail({ product }) {
   } = useRentalDates();
 
   const variants = product?.variants || [];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   const firstVariant = variants[0] || {
     id: `var-${product?.id || 1}`,
     size: "M",

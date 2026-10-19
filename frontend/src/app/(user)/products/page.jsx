@@ -13,11 +13,14 @@ function ProductsView() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get("category") || "all";
   const initialSearch = searchParams.get("search") || "";
+  const featuredOnly = searchParams.get("is_featured") === "1";
+  const saleOnly = searchParams.get("is_sale") === "1";
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [selectedBrand, setSelectedBrand] = useState("all");
@@ -27,15 +30,20 @@ function ProductsView() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
-      const [prodRes, catRes, brandRes] = await Promise.all([
-        productService.getProducts(),
-        categoryService.getCategories(),
-        brandService.getBrands(),
-      ]);
-      setProducts(prodRes);
-      setCategories(catRes);
-      setBrands(brandRes);
-      setLoading(false);
+      try {
+        const [prodRes, catRes, brandRes] = await Promise.all([
+          productService.getProducts(),
+          categoryService.getCategories(),
+          brandService.getBrands(),
+        ]);
+        setProducts(prodRes);
+        setCategories(catRes);
+        setBrands(brandRes);
+      } catch {
+        setError("Chưa tải được dữ liệu. Bạn vui lòng thử lại sau.");
+      } finally {
+        setLoading(false);
+      }
     }
     fetchData();
   }, []);
@@ -43,9 +51,12 @@ function ProductsView() {
   const filteredProducts = useMemo(() => {
     return products
       .filter((p) => {
+        if (featuredOnly && !p.is_featured) return false;
+        if (saleOnly && !(p.is_sale && p.sale_rental_price > 0 && p.sale_rental_price < p.rental_price_per_day)) return false;
         if (selectedCategory !== "all") {
           const matchCat =
             p.categorySlug === selectedCategory ||
+            p.category?.slug === selectedCategory ||
             String(p.category_id) === String(selectedCategory) ||
             p.category?.name?.toLowerCase().includes(selectedCategory.toLowerCase());
           if (!matchCat) return false;
@@ -71,19 +82,19 @@ function ProductsView() {
         return true;
       })
       .sort((a, b) => {
-        const priceA = a.rental_price_per_day || a.pricePerDay || 0;
-        const priceB = b.rental_price_per_day || b.pricePerDay || 0;
+        const priceA = a.effective_price ?? a.rental_price_per_day ?? a.pricePerDay ?? 0;
+        const priceB = b.effective_price ?? b.rental_price_per_day ?? b.pricePerDay ?? 0;
         if (sortBy === "price_asc") return priceA - priceB;
         if (sortBy === "price_desc") return priceB - priceA;
         if (sortBy === "featured") return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
         return 0;
       });
-  }, [products, selectedCategory, selectedBrand, search, sortBy]);
+  }, [products, selectedCategory, selectedBrand, search, sortBy, featuredOnly, saleOnly]);
 
   return (
     <div className="shell py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-ink font-serif">Tất cả sản phẩm</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-ink font-serif">{saleOnly ? "Sản phẩm sale" : featuredOnly ? "Sản phẩm hot" : "Tất cả sản phẩm"}</h1>
         <p className="mt-1 text-sm text-ink-2">Bộ sưu tập trang phục cao cấp cho thuê theo ngày.</p>
       </div>
 
@@ -184,6 +195,10 @@ function ProductsView() {
                 </div>
               ))}
             </div>
+          ) : error ? (
+            <p role="alert" className="border border-line p-6 text-sm text-ink-2">{error}</p>
+          ) : filteredProducts.length === 0 ? (
+            <p role="status" className="border border-line p-6 text-sm text-ink-2">Chưa có sản phẩm phù hợp.</p>
           ) : (
             <ProductGrid products={filteredProducts} />
           )}
@@ -191,6 +206,11 @@ function ProductsView() {
       </div>
     </div>
   );
+}
+
+function ProductsRoute() {
+  const searchParams = useSearchParams();
+  return <ProductsView key={searchParams.toString()} />;
 }
 
 export default function ProductsPage() {
@@ -207,7 +227,7 @@ export default function ProductsPage() {
         </div>
       }
     >
-      <ProductsView />
+      <ProductsRoute />
     </Suspense>
   );
 }

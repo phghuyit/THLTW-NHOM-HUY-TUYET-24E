@@ -11,9 +11,8 @@ use App\Http\Requests\UpdateBrandRequest;
 use Illuminate\Validation\Rule;
 class BrandController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
+
     public function index()
     {
         $brands = Brand::where('status', 'active')
@@ -23,9 +22,8 @@ class BrandController extends Controller
         return BrandResource::collection($brands);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+
+
     public function store(StoreBrandRequest $request)
     {
         $data = $request->validated();
@@ -40,9 +38,8 @@ class BrandController extends Controller
             ->setStatusCode(201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+
+
     public function show(string $slug)
     {
         $brand = Brand::where('slug', $slug)
@@ -52,9 +49,8 @@ class BrandController extends Controller
         return new BrandResource($brand);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+
+
     public function update(UpdateBrandRequest $request, Brand $brand)
     {
         $data = $request->validated();
@@ -74,9 +70,8 @@ class BrandController extends Controller
         return new BrandResource($brand);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+
+
     public function softDelete(Brand $brand)
     {
         $brand->delete();
