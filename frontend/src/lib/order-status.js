@@ -77,3 +77,21 @@ export const TONE_CLASS = {
 export function canCancel(status) {
   return status === "pending_payment" || status === "confirmed";
 }
+
+export const ORDER_TIMELINE = [
+  { key: "pending_payment", label: "Chờ thanh toán", caption: "Đang chờ khách thanh toán" },
+  { key: "confirmed", label: "Đã xác nhận", caption: "Đơn hàng đã được xác nhận" },
+  { key: "preparing", label: "Đang soạn đồ", caption: "Shop đang đóng gói đồ" },
+  { key: "ready", label: "Sẵn sàng", caption: "Đã sẵn sàng giao cho khách" },
+  { key: "in_use", label: "Đang thuê", caption: "Khách đang sử dụng trang phục" },
+  { key: "completed", label: "Hoàn tất", caption: "Đã hoàn trả và quyết toán" },
+];
+
+export function isTerminated(status) {
+  return status === "cancelled" || status === "expired";
+}
+
+export function currentStepIndex(status) {
+  const index = ORDER_TIMELINE.findIndex((s) => s.key === status);
+  return index >= 0 ? index : 0;
+}

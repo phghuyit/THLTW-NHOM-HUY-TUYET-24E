@@ -5,6 +5,8 @@ import { productService } from "@/services/productService";
 import { categoryService } from "@/services/categoryService";
 import { brandService } from "@/services/brandService";
 import { orderService } from "@/services/orderService";
+import { userService } from "@/services/userService";
+import { useToast } from "@/components/ui/Toast";
 import { PageHeader } from "@/components/ui/PageParts";
 import { DataTable } from "@/components/ui/DataTable";
 import { OrderStatusChip } from "@/components/admin/Chips";
@@ -13,25 +15,29 @@ import { formatDate } from "@/lib/date";
 import { formatVnd } from "@/lib/money";
 
 export default function AdminTrashPage() {
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState("orders");
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [users, setUsers] = useState([]);
 
   const loadTrash = async () => {
     setLoading(true);
-    const [oList, pList, cList, bList] = await Promise.all([
+    const [oList, pList, cList, bList, uList] = await Promise.all([
       orderService.getTrashOrders(),
       productService.getTrashProducts(),
       categoryService.getTrashCategories(),
       brandService.getTrashBrands(),
+      userService.getTrashUsers(),
     ]);
     setOrders(Array.isArray(oList) ? oList : []);
     setProducts(Array.isArray(pList) ? pList : []);
     setCategories(Array.isArray(cList) ? cList : []);
     setBrands(Array.isArray(bList) ? bList : []);
+    setUsers(Array.isArray(uList) ? uList : []);
     setLoading(false);
   };
 
@@ -40,20 +46,40 @@ export default function AdminTrashPage() {
   }, []);
 
   const handleRestore = async (type, id) => {
-    if (type === "orders") await orderService.restoreOrder(id);
-    if (type === "products") await productService.restoreProduct(id);
-    if (type === "categories") await categoryService.restoreCategory(id);
-    if (type === "brands") await brandService.restoreBrand(id);
-    await loadTrash();
+    try {
+      if (type === "orders") await orderService.restoreOrder(id);
+      if (type === "products") await productService.restoreProduct(id);
+      if (type === "categories") await categoryService.restoreCategory(id);
+      if (type === "brands") await brandService.restoreBrand(id);
+      if (type === "users") await userService.restoreUser(id);
+      addToast({ title: "Thành công", description: "Đã khôi phục mục đã chọn", variant: "success" });
+      await loadTrash();
+    } catch (err) {
+      addToast({
+        title: "Lỗi khôi phục",
+        description: err.response?.data?.message || err.message || "Không thể khôi phục mục này",
+        variant: "danger",
+      });
+    }
   };
 
   const handleForceDelete = async (type, id) => {
     if (!confirm("Hành động này sẽ xóa vĩnh viễn và không thể khôi phục. Tiếp tục?")) return;
-    if (type === "orders") await orderService.forceDeleteOrder(id);
-    if (type === "products") await productService.forceDeleteProduct(id);
-    if (type === "categories") await categoryService.forceDeleteCategory(id);
-    if (type === "brands") await brandService.forceDeleteBrand(id);
-    await loadTrash();
+    try {
+      if (type === "orders") await orderService.forceDeleteOrder(id);
+      if (type === "products") await productService.forceDeleteProduct(id);
+      if (type === "categories") await categoryService.forceDeleteCategory(id);
+      if (type === "brands") await brandService.forceDeleteBrand(id);
+      if (type === "users") await userService.forceDeleteUser(id);
+      addToast({ title: "Thành công", description: "Đã xóa vĩnh viễn", variant: "success" });
+      await loadTrash();
+    } catch (err) {
+      addToast({
+        title: "Lỗi xóa vĩnh viễn",
+        description: err.response?.data?.message || err.message || "Không thể xóa vĩnh viễn mục này",
+        variant: "danger",
+      });
+    }
   };
 
   const orderColumns = [
@@ -244,11 +270,61 @@ export default function AdminTrashPage() {
     },
   ];
 
+  const userColumns = [
+    {
+      key: "fullname",
+      header: "Họ và tên",
+      render: (u) => (
+        <div>
+          <p className="font-semibold text-ink">{u.fullname}</p>
+          <p className="text-[11.5px] text-ink-3">{u.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: "phone",
+      header: "Số điện thoại",
+      render: (u) => <span className="font-mono text-xs text-ink-2">{u.phone || "—"}</span>,
+    },
+    {
+      key: "role",
+      header: "Vai trò",
+      render: (u) => (
+        <span className="text-[11.5px] text-ink-2">
+          {u.role === "admin" ? "Quản trị viên" : "Thành viên"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Thao tác",
+      align: "right",
+      render: (u) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => handleRestore("users", u.id)}
+            className="btn btn-outline btn-sm gap-1"
+          >
+            <IconRotateCcw width={13} height={13} /> Khôi phục
+          </button>
+          <button
+            type="button"
+            onClick={() => handleForceDelete("users", u.id)}
+            className="btn btn-danger btn-sm gap-1"
+          >
+            <IconTrash width={13} height={13} /> Xóa vĩnh viễn
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       <PageHeader
         title="Thùng rác hệ thống"
-        description="Khôi phục hoặc xóa vĩnh viễn đơn hủy, sản phẩm, danh mục và thương hiệu đã xóa."
+        description="Khôi phục hoặc xóa vĩnh viễn đơn hủy, sản phẩm, danh mục, thương hiệu và tài khoản đã xóa."
       />
 
       <div className="mb-4 flex flex-wrap gap-2 border-b border-line pb-3">
@@ -296,6 +372,17 @@ export default function AdminTrashPage() {
         >
           Thương hiệu ({brands.length})
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("users")}
+          className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors ${
+            activeTab === "users"
+              ? "bg-ink text-white"
+              : "border border-line bg-surface text-ink-2 hover:text-ink"
+          }`}
+        >
+          Tài khoản ({users.length})
+        </button>
       </div>
 
       {activeTab === "orders" && (
@@ -335,6 +422,16 @@ export default function AdminTrashPage() {
           getKey={(b) => b.id || b.slug}
           loading={loading}
           emptyText="Thùng rác thương hiệu trống."
+        />
+      )}
+
+      {activeTab === "users" && (
+        <DataTable
+          columns={userColumns}
+          rows={users}
+          getKey={(u) => u.id}
+          loading={loading}
+          emptyText="Thùng rác tài khoản trống."
         />
       )}
     </div>

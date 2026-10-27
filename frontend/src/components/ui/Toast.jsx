@@ -9,12 +9,14 @@ const ToastContext = createContext(null);
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) {
+    const fallback = (t) => {
+      if (typeof window !== "undefined") {
+        alert(`${t.title || ""}${t.body || t.description ? `: ${t.body || t.description}` : ""}`);
+      }
+    };
     return {
-      push: (t) => {
-        if (typeof window !== "undefined") {
-          alert(`${t.title || ""}${t.body ? `: ${t.body}` : ""}`);
-        }
-      },
+      push: fallback,
+      addToast: fallback,
     };
   }
   return ctx;
@@ -25,10 +27,18 @@ export function ToastProvider({ children }) {
 
   const push = useCallback((toast) => {
     const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev.slice(-2), { ...toast, id }]);
+    const rawTone = toast.tone || toast.variant;
+    const tone = rawTone === "danger" ? "error" : (rawTone || "info");
+    const normalized = {
+      ...toast,
+      tone,
+      body: toast.body || toast.description || "",
+      id,
+    };
+    setToasts((prev) => [...prev.slice(-2), normalized]);
   }, []);
 
-  const value = useMemo(() => ({ push }), [push]);
+  const value = useMemo(() => ({ push, addToast: push }), [push]);
 
   return (
     <ToastContext.Provider value={value}>

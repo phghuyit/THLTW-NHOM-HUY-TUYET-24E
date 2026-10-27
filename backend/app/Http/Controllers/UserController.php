@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\User\ChangePasswordRequest;
 use App\Http\Requests\User\RegisterRequest;
+use App\Http\Requests\User\UpdateProfileRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Resources\User\DetailProfileResource;
 use App\Http\Resources\User\UserResource;
@@ -11,13 +13,78 @@ use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
-    public function index()
+    // ==========================================
+    // Client / Profile
+    // ==========================================
+
+    public function profile(Request $request)
     {
-        $users = User::query()->active()->paginate(10);
+        $user = $request->user()->load(['orders.items.productSize.product']);
+
+        return response()->json([
+            'message' => 'Lấy thông tin người dùng thành công',
+            'data' => new DetailProfileResource($user),
+        ], 200);
+    }
+
+    public function updateProfile(UpdateProfileRequest $request)
+    {
+        $user = $request->user();
+        $user->update($request->validated());
+
+        return response()->json([
+            'message' => 'Cập nhật thông tin cá nhân thành công',
+            'data' => new DetailProfileResource($user),
+        ], 200);
+    }
+
+    public function changePassword(ChangePasswordRequest $request)
+    {
+        $user = $request->user();
+        $user->update([
+            'password' => $request->new_password,
+        ]);
+
+        return response()->json([
+            'message' => 'Đổi mật khẩu thành công',
+        ], 200);
+    }
+
+    // ==========================================
+    // Admin
+    // ==========================================
+
+    public function index(Request $request)
+    {
+        $query = User::query();
+
+        if ($request->has('status') && $request->status !== 'all' && $request->status !== '') {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->has('role') && $request->role !== 'all' && $request->role !== '') {
+            $query->where('role', $request->role);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('fullname', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        $users = $query->latest()->paginate($request->integer('per_page', 12));
 
         return response()->json([
             'message' => 'Lấy toàn bộ người dùng thành công!',
             'data' => UserResource::collection($users),
+            'pagination' => [
+                'total' => $users->total(),
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+            ],
         ], 200);
     }
 
@@ -34,7 +101,7 @@ class UserController extends Controller
 
     public function show(string $id)
     {
-        $user = User::query()->active()->findOrFail($id);
+        $user = User::with(['orders.items.productSize.product'])->findOrFail($id);
 
         return response()->json([
             'message' => 'Lấy thông tin người dùng thành công',
@@ -66,7 +133,7 @@ class UserController extends Controller
 
     public function trash()
     {
-        $users = User::onlyTrashed()->latest()->paginate(10);
+        $users = User::onlyTrashed()->latest()->paginate(12);
 
         return response()->json([
             'message' => 'Lấy danh sách người dùng trong thùng rác thành công',

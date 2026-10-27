@@ -1,18 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { brandService } from "@/services/brandService";
 import { PageHeader } from "@/components/ui/PageParts";
 import { DataTable } from "@/components/ui/DataTable";
-import { Modal } from "@/components/ui/Overlay";
-import { IconEdit, IconPlus, IconTrash } from "@/components/ui/Icons";
+import { Drawer, Modal } from "@/components/ui/Overlay";
+import { IconEdit, IconEye, IconPlus, IconTrash } from "@/components/ui/Icons";
+import { useToast } from "@/components/ui/Toast";
 
 export default function AdminBrandsPage() {
+  const toast = useToast();
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
+  const [previewBrand, setPreviewBrand] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -20,10 +25,12 @@ export default function AdminBrandsPage() {
   });
 
   const loadBrands = async () => {
-    setLoading(true);
-    const data = await brandService.getBrands();
-    setBrands(data);
-    setLoading(false);
+    try {
+      const data = await brandService.getBrands();
+      setBrands(data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -48,21 +55,48 @@ export default function AdminBrandsPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.name) return;
-
-    if (editingBrand) {
-      await brandService.updateBrand(editingBrand.id, formData);
-    } else {
-      await brandService.createBrand(formData);
+    if (!formData.name.trim()) {
+      toast.push({ tone: "danger", title: "Vui lòng nhập tên thương hiệu." });
+      return;
     }
-    setModalOpen(false);
-    await loadBrands();
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description || null,
+      };
+
+      if (editingBrand) {
+        await brandService.updateBrand(editingBrand.id, payload);
+        toast.push({ tone: "success", title: "Cập nhật thương hiệu thành công!" });
+      } else {
+        await brandService.createBrand(payload);
+        toast.push({ tone: "success", title: "Tạo thương hiệu mới thành công!" });
+      }
+      setModalOpen(false);
+      await loadBrands();
+    } catch (err) {
+      const msg =
+        err.response?.data?.errors?.name?.[0] ||
+        err.response?.data?.message ||
+        "Không thể lưu thương hiệu. Vui lòng kiểm tra lại.";
+      toast.push({ tone: "danger", title: msg });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDelete = async (id) => {
     if (confirm("Bạn có chắc chắn muốn xóa thương hiệu này?")) {
-      await brandService.deleteBrand(id);
-      await loadBrands();
+      try {
+        await brandService.deleteBrand(id);
+        toast.push({ tone: "success", title: "Đã chuyển thương hiệu vào thùng rác." });
+        await loadBrands();
+      } catch (err) {
+        const msg = err.response?.data?.message || "Không thể xóa thương hiệu.";
+        toast.push({ tone: "danger", title: msg });
+      }
     }
   };
 
@@ -91,6 +125,14 @@ export default function AdminBrandsPage() {
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
+            onClick={() => setPreviewBrand(b)}
+            className="btn btn-outline btn-sm gap-1"
+            title="Xem chi tiết"
+          >
+            <IconEye width={13} height={13} /> Xem
+          </button>
+          <button
+            type="button"
             onClick={() => openEditModal(b)}
             className="btn btn-outline btn-sm gap-1"
           >
@@ -112,7 +154,7 @@ export default function AdminBrandsPage() {
     <div>
       <PageHeader
         title="Quản lý thương hiệu"
-        description="Các thương hiệu, nhà thiết kế thời trang hợp tác."
+        description="Danh sách các thương hiệu & nhà thiết kế liên kết."
         actions={
           <button type="button" onClick={openCreateModal} className="btn btn-sm gap-1.5">
             <IconPlus width={14} height={14} /> Thêm thương hiệu
@@ -126,6 +168,70 @@ export default function AdminBrandsPage() {
         getKey={(b) => b.id || b.slug}
         loading={loading}
       />
+
+      <Drawer
+        open={Boolean(previewBrand)}
+        onClose={() => setPreviewBrand(null)}
+        title={previewBrand?.name || "Chi tiết thương hiệu"}
+        subtitle={`Mã: ${previewBrand?.id || ""} · Slug: ${previewBrand?.slug || ""}`}
+        width="max-w-md"
+        footer={
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const brand = previewBrand;
+                setPreviewBrand(null);
+                openEditModal(brand);
+              }}
+              className="btn btn-outline btn-sm gap-1.5"
+            >
+              <IconEdit width={14} height={14} /> Chỉnh sửa
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewBrand(null)}
+              className="btn btn-sm"
+            >
+              Đóng
+            </button>
+          </div>
+        }
+      >
+        {previewBrand && (
+          <div className="space-y-5 text-[13px]">
+            <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+              <div>
+                <p className="text-[11px] text-ink-3">Tên thương hiệu / Nhà thiết kế</p>
+                <p className="text-base font-bold text-ink mt-0.5">{previewBrand.name}</p>
+              </div>
+
+              <div>
+                <p className="text-[11px] text-ink-3">Đường dẫn tĩnh (Slug)</p>
+                <p className="font-mono text-xs text-accent mt-0.5">{previewBrand.slug}</p>
+              </div>
+
+              <div>
+                <p className="text-[11px] text-ink-3">Giới thiệu thương hiệu</p>
+                <p className="text-xs text-ink-2 mt-0.5 leading-relaxed whitespace-pre-line">
+                  {previewBrand.description || "Chưa có thông tin mô tả cho thương hiệu này."}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <Link
+                href={`/products?brand=${previewBrand.slug}`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
+              >
+                <span>Xem tất cả sản phẩm của thương hiệu này</span>
+                <span>&rarr;</span>
+              </Link>
+            </div>
+          </div>
+        )}
+      </Drawer>
 
       <Modal
         open={modalOpen}
@@ -141,27 +247,18 @@ export default function AdminBrandsPage() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="field"
+              placeholder="Ví dụ: SIXDO, Ivy Moda, v.v."
             />
           </div>
 
           <div>
-            <label className="field-label">Slug</label>
-            <input
-              type="text"
-              value={formData.slug}
-              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-              placeholder="de-trong-tu-dong-tao"
-              className="field"
-            />
-          </div>
-
-          <div>
-            <label className="field-label">Mô tả</label>
+            <label className="field-label">Mô tả (tùy chọn)</label>
             <textarea
               rows={3}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="field"
+              placeholder="Giới thiệu phong cách thiết kế và thông tin thương hiệu..."
             />
           </div>
 
@@ -173,8 +270,8 @@ export default function AdminBrandsPage() {
             >
               Hủy
             </button>
-            <button type="submit" className="btn btn-sm">
-              Lưu thương hiệu
+            <button type="submit" disabled={submitting} className="btn btn-sm">
+              {submitting ? "Đang lưu..." : "Lưu thương hiệu"}
             </button>
           </div>
         </form>

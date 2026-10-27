@@ -4,11 +4,32 @@ import { useRef, useState } from "react";
 import { ProductMedia } from "@/components/user/ProductMedia";
 import { cn } from "@/lib/utils";
 
-export function ImageGallery({ images = [], name }) {
+export function ImageGallery({ images = [], thumbnail, name }) {
   const [index, setIndex] = useState(0);
   const trackRef = useRef(null);
 
-  const list = images.length > 0 ? images : [{ id: "fallback", motif: "portrait", tone: ["#6d4a44", "#efe6da"], alt: name }];
+  const rawList =
+    Array.isArray(images) && images.length > 0
+      ? images
+      : thumbnail
+      ? [{ id: "thumb", src: thumbnail, alt: name }]
+      : [];
+
+  const list =
+    rawList.length > 0
+      ? rawList.map((item, idx) => {
+          const src =
+            typeof item === "string"
+              ? item
+              : item?.image_url || item?.src || item?.url;
+          return {
+            ...(typeof item === "object" ? item : {}),
+            id: item?.id || `img-${idx}`,
+            src,
+            alt: item?.alt || name,
+          };
+        })
+      : [{ id: "fallback", motif: "portrait", tone: ["#6d4a44", "#efe6da"], alt: name }];
 
   function onScroll() {
     const el = trackRef.current;
@@ -58,10 +79,15 @@ export function ImageGallery({ images = [], name }) {
             <ProductMedia key={image.id || i} image={image} ratio="3/4" />
           ))}
           {list[3] && (
-            <div className="col-span-2">
-              <ProductMedia image={list[3]} ratio="16/9" label={name} />
+            <div className={cn(list.length > 4 ? "col-span-1" : "col-span-2")}>
+              <ProductMedia image={list[3]} ratio={list.length > 4 ? "3/4" : "16/9"} label={name} />
             </div>
           )}
+          {list.slice(4).map((image, i) => (
+            <div key={image.id || i + 4} className="col-span-1">
+              <ProductMedia image={image} ratio="3/4" />
+            </div>
+          ))}
         </div>
       </div>
     </>

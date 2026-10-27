@@ -24,7 +24,6 @@ class HomepageApiTest extends TestCase
             'thumbnail' => 'https://example.com/product.jpg',
             'rental_price_per_day' => 300000,
             'original_value' => 1000000,
-            'deposit_rate_percent' => 70,
             'status' => 'active',
         ], $attributes));
     }

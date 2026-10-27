@@ -6,11 +6,13 @@ import { PageHeader } from "@/components/ui/PageParts";
 import { DataTable } from "@/components/ui/DataTable";
 import { Drawer } from "@/components/ui/Overlay";
 import { OrderStatusChip } from "@/components/admin/Chips";
+import { useToast } from "@/components/ui/Toast";
 import { formatDate, formatDateTime } from "@/lib/date";
 import { formatVnd } from "@/lib/money";
 import { ORDER_STATUS } from "@/lib/order-status";
 
 export default function AdminOrdersPage() {
+  const toast = useToast();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewOrder, setPreviewOrder] = useState(null);
@@ -27,10 +29,16 @@ export default function AdminOrdersPage() {
   }, []);
 
   const handleStatusChange = async (code, newStatus) => {
-    await orderService.updateOrderStatus(code, newStatus);
-    await loadOrders();
-    if (previewOrder?.code === code) {
-      setPreviewOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
+    try {
+      await orderService.updateOrderStatus(code, newStatus);
+      toast.push({ tone: "success", title: `Đã cập nhật trạng thái đơn #${code}` });
+      await loadOrders();
+      if (previewOrder?.code === code) {
+        setPreviewOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || "Lỗi cập nhật trạng thái đơn hàng.";
+      toast.push({ tone: "danger", title: msg });
     }
   };
 
@@ -146,6 +154,14 @@ export default function AdminOrdersPage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="card p-3 space-y-1.5 text-xs">
+              <h4 className="font-semibold text-ink mb-1">Thông tin nhận đồ</h4>
+              <p><span className="text-ink-3">Người nhận:</span> <strong className="text-ink">{previewOrder.receiverName}</strong> ({previewOrder.receiverPhone})</p>
+              <p><span className="text-ink-3">Địa chỉ:</span> <span className="text-ink">{previewOrder.address || "Nhận tại quầy"}</span></p>
+              <p><span className="text-ink-3">Phương thức:</span> <span className="text-ink">{previewOrder.paymentMethod === "vnpay" ? "Cổng VNPay" : "Thanh toán khi nhận đồ (COD)"}</span></p>
+              {previewOrder.note && <p><span className="text-ink-3">Ghi chú:</span> <span className="text-ink italic">{previewOrder.note}</span></p>}
             </div>
 
             <div className="card divide-y divide-line">

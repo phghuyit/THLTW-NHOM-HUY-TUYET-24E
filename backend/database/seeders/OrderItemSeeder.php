@@ -22,7 +22,6 @@ class OrderItemSeeder extends Seeder
                 'product_sizes.id as size_id',
                 'products.name',
                 'products.rental_price_per_day',
-                'products.deposit_rate_percent',
                 'products.original_value'
             )
             ->get();
@@ -41,9 +40,9 @@ class OrderItemSeeder extends Seeder
 
         $now = now();
 
-        $deposit1 = ($size1->original_value * $size1->deposit_rate_percent) / 100;
-        $deposit2 = ($size2->original_value * $size2->deposit_rate_percent) / 100;
-        $deposit3 = ($size3->original_value * $size3->deposit_rate_percent) / 100;
+        $deposit1 = 0;
+        $deposit2 = 0;
+        $deposit3 = 0;
 
         $items = [
             [

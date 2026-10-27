@@ -1,18 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { categoryService } from "@/services/categoryService";
 import { PageHeader } from "@/components/ui/PageParts";
 import { DataTable } from "@/components/ui/DataTable";
-import { Modal } from "@/components/ui/Overlay";
-import { IconEdit, IconPlus, IconTrash } from "@/components/ui/Icons";
+import { Drawer, Modal } from "@/components/ui/Overlay";
+import { IconEdit, IconEye, IconPlus, IconTrash } from "@/components/ui/Icons";
+import { useToast } from "@/components/ui/Toast";
 
 export default function AdminCategoriesPage() {
+  const toast = useToast();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+  const [previewCategory, setPreviewCategory] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -20,10 +25,12 @@ export default function AdminCategoriesPage() {
   });
 
   const loadCategories = async () => {
-    setLoading(true);
-    const data = await categoryService.getCategories();
-    setCategories(data);
-    setLoading(false);
+    try {
+      const data = await categoryService.getCategories();
+      setCategories(data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -48,21 +55,48 @@ export default function AdminCategoriesPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.name) return;
-
-    if (editingCategory) {
-      await categoryService.updateCategory(editingCategory.id, formData);
-    } else {
-      await categoryService.createCategory(formData);
+    if (!formData.name.trim()) {
+      toast.push({ tone: "danger", title: "Vui lòng nhập tên danh mục." });
+      return;
     }
-    setModalOpen(false);
-    await loadCategories();
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description || null,
+      };
+
+      if (editingCategory) {
+        await categoryService.updateCategory(editingCategory.id, payload);
+        toast.push({ tone: "success", title: "Cập nhật danh mục thành công!" });
+      } else {
+        await categoryService.createCategory(payload);
+        toast.push({ tone: "success", title: "Tạo danh mục mới thành công!" });
+      }
+      setModalOpen(false);
+      await loadCategories();
+    } catch (err) {
+      const msg =
+        err.response?.data?.errors?.name?.[0] ||
+        err.response?.data?.message ||
+        "Không thể lưu danh mục. Vui lòng kiểm tra lại.";
+      toast.push({ tone: "danger", title: msg });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDelete = async (id) => {
     if (confirm("Bạn có chắc chắn muốn xóa danh mục này?")) {
-      await categoryService.deleteCategory(id);
-      await loadCategories();
+      try {
+        await categoryService.deleteCategory(id);
+        toast.push({ tone: "success", title: "Đã chuyển danh mục vào thùng rác." });
+        await loadCategories();
+      } catch (err) {
+        const msg = err.response?.data?.message || "Không thể xóa danh mục.";
+        toast.push({ tone: "danger", title: msg });
+      }
     }
   };
 
@@ -89,6 +123,14 @@ export default function AdminCategoriesPage() {
       align: "right",
       render: (c) => (
         <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setPreviewCategory(c)}
+            className="btn btn-outline btn-sm gap-1"
+            title="Xem chi tiết"
+          >
+            <IconEye width={13} height={13} /> Xem
+          </button>
           <button
             type="button"
             onClick={() => openEditModal(c)}
@@ -127,10 +169,74 @@ export default function AdminCategoriesPage() {
         loading={loading}
       />
 
+      <Drawer
+        open={Boolean(previewCategory)}
+        onClose={() => setPreviewCategory(null)}
+        title={previewCategory?.name || "Chi tiết danh mục"}
+        subtitle={`Mã: ${previewCategory?.id || ""} · Slug: ${previewCategory?.slug || ""}`}
+        width="max-w-md"
+        footer={
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const cat = previewCategory;
+                setPreviewCategory(null);
+                openEditModal(cat);
+              }}
+              className="btn btn-outline btn-sm gap-1.5"
+            >
+              <IconEdit width={14} height={14} /> Chỉnh sửa
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewCategory(null)}
+              className="btn btn-sm"
+            >
+              Đóng
+            </button>
+          </div>
+        }
+      >
+        {previewCategory && (
+          <div className="space-y-5 text-[13px]">
+            <div className="rounded-lg border border-line bg-surface p-4 space-y-3">
+              <div>
+                <p className="text-[11px] text-ink-3">Tên danh mục</p>
+                <p className="text-base font-bold text-ink mt-0.5">{previewCategory.name}</p>
+              </div>
+
+              <div>
+                <p className="text-[11px] text-ink-3">Đường dẫn tĩnh (Slug)</p>
+                <p className="font-mono text-xs text-accent mt-0.5">{previewCategory.slug}</p>
+              </div>
+
+              <div>
+                <p className="text-[11px] text-ink-3">Mô tả danh mục</p>
+                <p className="text-xs text-ink-2 mt-0.5 leading-relaxed whitespace-pre-line">
+                  {previewCategory.description || "Chưa có mô tả cho danh mục này."}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <Link
+                href={`/products?category=${previewCategory.slug}`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
+              >
+                <span>Xem tất cả sản phẩm thuộc danh mục này</span>
+                <span>&rarr;</span>
+              </Link>
+            </div>
+          </div>
+        )}
+      </Drawer>
+
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingCategory ? "Chỉnh sửa danh mục" : "Thêm danh mục mới"}
+        title={editingCategory ? "Chỉnh sửa danh mục" : "Tạo danh mục mới"}
       >
         <form onSubmit={handleSave} className="space-y-4">
           <div>
@@ -141,27 +247,18 @@ export default function AdminCategoriesPage() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="field"
+              placeholder="Ví dụ: Áo dài truyền thống"
             />
           </div>
 
           <div>
-            <label className="field-label">Slug</label>
-            <input
-              type="text"
-              value={formData.slug}
-              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-              placeholder="de-trong-tu-dong-tao"
-              className="field"
-            />
-          </div>
-
-          <div>
-            <label className="field-label">Mô tả</label>
+            <label className="field-label">Mô tả (tùy chọn)</label>
             <textarea
               rows={3}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="field"
+              placeholder="Mô tả phong cách và đặc điểm trang phục trong danh mục này..."
             />
           </div>
 
@@ -173,8 +270,8 @@ export default function AdminCategoriesPage() {
             >
               Hủy
             </button>
-            <button type="submit" className="btn btn-sm">
-              Lưu danh mục
+            <button type="submit" disabled={submitting} className="btn btn-sm">
+              {submitting ? "Đang lưu..." : "Lưu danh mục"}
             </button>
           </div>
         </form>

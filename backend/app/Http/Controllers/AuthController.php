@@ -38,7 +38,7 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
-        $user->tokens()->delete();
+        $user->tokens()->where('name', 'auth_member_token')->delete();
         $token = $user->createToken('auth_member_token')->plainTextToken;
 
         return response()->json([
@@ -59,7 +59,7 @@ class AuthController extends Controller
         }
 
         $admin = Auth::user();
-        $admin->tokens()->delete();
+        $admin->tokens()->where('name', 'auth_admin_token')->delete();
         $adminToken = $admin->createToken('auth_admin_token')->plainTextToken;
 
         return response()->json([

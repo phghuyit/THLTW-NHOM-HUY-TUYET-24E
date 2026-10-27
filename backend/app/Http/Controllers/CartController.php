@@ -14,7 +14,7 @@ class CartController extends Controller
 {
     private function getCartUser(): ?User
     {
-        return Auth::user() ?? User::first();
+        return Auth::user();
     }
 
     private function getOrCreateCart(User $user): Cart

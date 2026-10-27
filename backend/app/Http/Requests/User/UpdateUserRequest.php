@@ -28,8 +28,8 @@ class UpdateUserRequest extends FormRequest
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             'avatar' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'role' => ['sometimes', 'required', Rule::in(['admin', 'customer'])],
-            'status' => ['sometimes', 'required', Rule::in(['active', 'inactive', 'banned'])],
+            'role' => ['sometimes', 'required', Rule::in(['admin', 'member', 'customer'])],
+            'status' => ['sometimes', 'required', Rule::in(['active', 'locked', 'inactive', 'banned'])],
         ];
     }
 

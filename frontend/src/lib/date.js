@@ -73,3 +73,9 @@ export function describeDaysLeft(target, from = todayISO()) {
   if (d === -1) return "quá hạn 1 ngày";
   return `quá hạn ${Math.abs(d)} ngày`;
 }
+
+/** Đếm ngược mm:ss cho HoldTimer */
+export function formatCountdown(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+}

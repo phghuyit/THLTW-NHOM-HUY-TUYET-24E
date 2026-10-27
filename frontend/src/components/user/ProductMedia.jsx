@@ -9,7 +9,16 @@ export function ProductMedia({
   overlay = false,
   label,
 }) {
-  const imgObj = typeof image === "object" ? image : (src || image ? { src: src || image, alt } : null);
+  const rawSrc =
+    typeof image === "string"
+      ? image
+      : image?.image_url || image?.src || image?.url || src;
+  const imgObj =
+    typeof image === "object" && image !== null
+      ? { ...image, src: rawSrc || image.src }
+      : rawSrc
+      ? { src: rawSrc, alt }
+      : null;
   const darkTone = imgObj?.tone?.[0] || "#6d4a44";
   const lightTone = imgObj?.tone?.[1] || "#efe6da";
   const motif = imgObj?.motif || "portrait";

@@ -29,7 +29,6 @@ class ProductResource extends JsonResource
             'formatted_rental_price' => number_format((int) $this->rental_price_per_day, 0, ',', '.') . '₫',
             'formatted_sale_rental_price' => $this->sale_rental_price !== null ? number_format((int) $this->sale_rental_price, 0, ',', '.') . '₫' : null,
             'formatted_effective_price' => number_format((int) $this->effective_price, 0, ',', '.') . '₫',
-            'deposit_rate_percent' => (int) $this->deposit_rate_percent,
             'original_value' => (int) $this->original_value,
             'formatted_original_value' => number_format((int) $this->original_value, 0, ',', '.') . '₫',
             'is_featured' => (bool) $this->is_featured,
@@ -40,7 +39,8 @@ class ProductResource extends JsonResource
             'category' => CategoryResource::make($this->whenLoaded('category')),
             'brand' => BrandResource::make($this->whenLoaded('brand')),
             'images' => ProductImageResource::collection($this->whenLoaded('images')),
-            'sizes' => ProductSizesResource::collection($this->whenLoaded('sizes'))
+            'sizes' => ProductSizesResource::collection($this->whenLoaded('sizes')),
+            'reviews' => ReviewResource::collection($this->whenLoaded('reviews'))
         ];
     }
 }

@@ -1,44 +1,66 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IconArrowRight, IconMail, IconPhone, IconPin } from "@/components/ui/Icons";
 import { useToast } from "@/components/ui/Toast";
+import { menuService } from "@/services/menuService";
 
 export default function Footer() {
   const toast = useToast();
   const [email, setEmail] = useState("");
 
-  const footerLinks = [
+  const [footerLinks, setFooterLinks] = useState([
     {
-      title: "Mua sắm",
+      title: "Khám phá",
       links: [
         { label: "Toàn bộ bộ sưu tập", href: "/products" },
-        { label: "Mới về", href: "/products" },
-        { label: "Đang được thuê nhiều", href: "/products" },
-        { label: "Váy cưới", href: "/products?category=vay-cuoi" },
-        { label: "Vest & Tuxedo", href: "/products?category=vest-nam" },
+        { label: "Váy cưới thiết kế", href: "/products?category=vay-cuoi" },
+        { label: "Vest & Tuxedo cao cấp", href: "/products?category=vest-nam" },
+        { label: "Tin tức & Cẩm nang", href: "/news" },
       ],
     },
     {
       title: "Hỗ trợ",
       links: [
-        { label: "Thuê đồ hoạt động thế nào", href: "/products" },
+        { label: "Quy trình thuê trang phục", href: "/products" },
         { label: "Chính sách thuê & hoàn cọc", href: "/products" },
         { label: "Câu hỏi thường gặp", href: "/products" },
-        { label: "Bảng size & gợi ý size", href: "/products" },
+        { label: "Tin tức thời trang", href: "/news" },
       ],
     },
     {
       title: "Tài khoản",
       links: [
-        { label: "Hồ sơ & số đo", href: "/login" },
-        { label: "Đơn thuê của tôi", href: "/login" },
-        { label: "Sổ địa chỉ", href: "/login" },
-        { label: "Yêu thích", href: "/products" },
+        { label: "Quản lý tài khoản", href: "/account" },
+        { label: "Đơn thuê của tôi", href: "/orders" },
+        { label: "Giỏ hàng thuê", href: "/cart" },
       ],
     },
-  ];
+  ]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadFooterMenus() {
+      try {
+        const data = await menuService.getMenus("footer");
+        if (active && Array.isArray(data) && data.length > 0) {
+          setFooterLinks((prev) => [
+            {
+              title: "Khám phá",
+              links: data.map((m) => ({ label: m.name, href: m.link })),
+            },
+            ...prev.slice(1),
+          ]);
+        }
+      } catch {
+      }
+    }
+    loadFooterMenus();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <footer className="mt-24 border-t border-line bg-canvas">

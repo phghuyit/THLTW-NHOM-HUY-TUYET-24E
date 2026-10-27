@@ -92,27 +92,61 @@ function ProductsContent() {
 
   const filteredProducts = useMemo(() => {
     let result = products.filter((p) => {
-      const price = p.rental_price_per_day || p.pricePerDay || 0;
+      const price = Number(
+        p.sale_rental_price && p.is_sale
+          ? p.sale_rental_price
+          : p.rental_price_per_day || p.pricePerDay || 0
+      );
 
       if (selectedCategories.length > 0) {
-        const matchCategory =
-          selectedCategories.includes(p.categorySlug) ||
-          selectedCategories.includes(String(p.category_id)) ||
-          selectedCategories.some((c) =>
-            p.category?.name?.toLowerCase().includes(c.toLowerCase())
+        const pCatId = p.category_id || p.category?.id;
+        const pCatSlug = p.category?.slug || p.categorySlug;
+        const directParentId = p.category?.parent_id;
+
+        const matchCategory = selectedCategories.some((key) => {
+          const kStr = String(key).toLowerCase();
+
+          if (pCatId && String(pCatId) === kStr) return true;
+          if (pCatSlug && pCatSlug.toLowerCase() === kStr) return true;
+
+          const selectedCat = categories.find(
+            (c) => c.slug?.toLowerCase() === kStr || String(c.id) === kStr
           );
+
+          if (selectedCat) {
+            if (pCatId && pCatId === selectedCat.id) return true;
+            if (pCatSlug && pCatSlug === selectedCat.slug) return true;
+            if (directParentId && directParentId === selectedCat.id) return true;
+
+            const childIds = categories
+              .filter((c) => c.parent_id === selectedCat.id)
+              .map((c) => c.id);
+            if (childIds.includes(pCatId)) return true;
+          }
+
+          if (p.category?.name && p.category.name.toLowerCase().includes(kStr)) {
+            return true;
+          }
+
+          return false;
+        });
+
         if (!matchCategory) return false;
       }
 
       if (selectedBrands.length > 0) {
-        const matchBrand =
-          selectedBrands.includes(String(p.brand_id)) ||
-          selectedBrands.includes(p.brand?.slug) ||
-          selectedBrands.some(
-            (b) =>
-              p.brand?.name?.toLowerCase().includes(b.toLowerCase()) ||
-              p.brandLine?.toLowerCase().includes(b.toLowerCase())
+        const matchBrand = selectedBrands.some((brandKey) => {
+          const kStr = String(brandKey).toLowerCase();
+          const pBrandId = String(p.brand_id || p.brand?.id || "");
+          const pBrandSlug = (p.brand?.slug || "").toLowerCase();
+          const pBrandName = (p.brand?.name || p.brandLine || "").toLowerCase();
+
+          return (
+            pBrandId === kStr ||
+            pBrandSlug === kStr ||
+            pBrandName.includes(kStr)
           );
+        });
         if (!matchBrand) return false;
       }
 
@@ -130,6 +164,7 @@ function ProductsContent() {
         const matchSearch =
           p.name?.toLowerCase().includes(term) ||
           p.description?.toLowerCase().includes(term) ||
+          p.short_description?.toLowerCase().includes(term) ||
           p.sku?.toLowerCase().includes(term);
         if (!matchSearch) return false;
       }
@@ -174,6 +209,7 @@ function ProductsContent() {
     return result;
   }, [
     products,
+    categories,
     selectedCategories,
     selectedBrands,
     selectedPriceBands,

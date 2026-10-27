@@ -13,11 +13,11 @@ class BrandController extends Controller
 {
 
 
-    public function index()
+    public function index(Request $request)
     {
         $brands = Brand::where('status', 'active')
             ->orderByDesc('id')
-            ->paginate(2);
+            ->paginate($request->integer('per_page', 12));
 
         return BrandResource::collection($brands);
     }

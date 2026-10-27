@@ -25,7 +25,6 @@ class Product extends Model
         'description',
         'rental_price_per_day',
         'sale_rental_price',
-        'deposit_rate_percent',
         'original_value',
         'is_featured',
         'is_sale',
@@ -36,7 +35,6 @@ class Product extends Model
     protected $casts = [
         'rental_price_per_day' => 'integer',
         'sale_rental_price' => 'integer',
-        'deposit_rate_percent' => 'integer',
         'original_value' => 'integer',
         'is_featured' => 'boolean',
         'is_sale' => 'boolean',
@@ -60,6 +58,11 @@ class Product extends Model
     public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class)->approved()->latest();
     }
 
     public function scopeActive(Builder $query): Builder
