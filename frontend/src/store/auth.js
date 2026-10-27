@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
       try {
         if (!window.localStorage.getItem(TOKEN_KEY)) return;
         const currentUser = await authService.getCurrentUser();
-        if (!cancelled) setUser(currentUser);
+        if (!cancelled) setUser(currentUser?.data || currentUser);
       } catch (error) {
         if (error.response?.status === 401) window.localStorage.removeItem(TOKEN_KEY);
       } finally {
@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
   async function login(credentials) {
     const result = await authService.login(credentials);
     window.localStorage.setItem(TOKEN_KEY, result.token);
-    setUser(result.data);
+    setUser(result.data || result);
   }
 
   async function logout() {
@@ -45,8 +45,23 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  const updateUser = (updatedData) => {
+    setUser((prev) => (prev ? { ...prev, ...updatedData } : updatedData));
+  };
+
+  async function refreshUser() {
+    try {
+      const res = await authService.getCurrentUser();
+      const userData = res?.data || res;
+      setUser(userData);
+      return userData;
+    } catch (error) {
+      return null;
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

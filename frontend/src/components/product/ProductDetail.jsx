@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { productService } from "@/services/productService";
 import { ImageGallery } from "./ImageGallery";
 import { VariantSelector } from "./VariantSelector";
 import { PricingTiers } from "@/components/rental/PricingTiers";
@@ -30,7 +31,6 @@ import { useMounted } from "@/hooks";
 import { formatVnd } from "@/lib/money";
 import { rentalDays, todayISO, addDays, formatDate } from "@/lib/date";
 import { buildQuote } from "@/lib/pricing";
-import { REVIEWS } from "@/data/reviews";
 import { PRODUCTS } from "@/data/products";
 import { OCCASIONS, CATEGORIES } from "@/data/catalog";
 import { SHIPPING, STORE } from "@/lib/settings";
@@ -96,16 +96,57 @@ export function ProductDetail({ product }) {
 
   const saved = wishlist.hydrated && wishlist.has(product?.slug);
 
-  const productReviews = useMemo(() => {
-    return REVIEWS.filter((r) => r.productSlug === product?.slug);
-  }, [product?.slug]);
+  const [relatedProducts, setRelatedProducts] = useState([]);
 
-  const related = useMemo(() => {
-    return PRODUCTS.filter(
-      (p) =>
-        p.slug !== product?.slug && p.categorySlug === product?.categorySlug,
-    ).slice(0, 4);
-  }, [product?.slug, product?.categorySlug]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRelated() {
+      try {
+        const allProducts = await productService.getProducts();
+        if (cancelled) return;
+
+        const currentId = product?.id;
+        const currentSlug = product?.slug;
+        const categoryId = product?.category_id || product?.category?.id;
+        const categorySlug = product?.category?.slug || product?.categorySlug;
+        const parentId = product?.category?.parent_id;
+
+        const matched = (allProducts || []).filter((p) => {
+          if (p.id === currentId || p.slug === currentSlug) return false;
+
+          const pCatId = p.category_id || p.category?.id;
+          const pCatSlug = p.category?.slug || p.categorySlug;
+          const pParentId = p.category?.parent_id;
+
+          if (categoryId && pCatId && String(categoryId) === String(pCatId))
+            return true;
+          if (categorySlug && pCatSlug && categorySlug === pCatSlug)
+            return true;
+          if (parentId && pParentId && parentId === pParentId) return true;
+
+          return false;
+        });
+
+        setRelatedProducts(matched.slice(0, 4));
+      } catch (err) {
+        console.error("Lỗi tải sản phẩm cùng category:", err);
+      }
+    }
+
+    loadRelated();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    product?.id,
+    product?.slug,
+    product?.category_id,
+    product?.category?.id,
+    product?.category?.slug,
+    product?.category?.parent_id,
+    product?.categorySlug,
+  ]);
 
   function handleAddToCart(redirect = false) {
     if (!pickup || !returnDate) {
@@ -120,6 +161,16 @@ export function ProductDetail({ product }) {
 
     cart.addLine({
       productSlug: product.slug,
+      name: product.name,
+      image: product.thumbnail || (Array.isArray(product.images) && (product.images[0]?.image_url || product.images[0]?.src || product.images[0])) || product.image,
+      thumbnail: product.thumbnail || (Array.isArray(product.images) && (product.images[0]?.image_url || product.images[0]?.src || product.images[0])),
+      brandLine: product.brand?.name || product.brandLine || "StyleRent",
+      size: variant.size,
+      color: variant.color,
+      pricePerDay: variant.pricePerDay,
+      depositAmount: variant.depositAmount,
+      product: product,
+      variant: variant,
       variantId: variant.id,
       quantity,
       pickupDate: pickup,
@@ -203,7 +254,7 @@ export function ProductDetail({ product }) {
 
       <div className="shell grid gap-10 pb-16 lg:grid-cols-[1.15fr_minmax(380px,0.85fr)] lg:gap-16">
         <div className="min-w-0">
-          <ImageGallery images={product?.images} name={product?.name} />
+          <ImageGallery images={product?.images} thumbnail={product?.thumbnail} name={product?.name} />
         </div>
 
         <div className="min-w-0 lg:sticky lg:top-[100px] lg:self-start">
@@ -394,21 +445,25 @@ export function ProductDetail({ product }) {
       </div>
 
       <div className="shell mt-20 border-t border-line pt-16">
-        <ReviewList
-          reviews={productReviews}
-          rating={product?.rating || 5}
-          reviewCount={product?.reviewCount || productReviews.length}
-        />
+        <ReviewList productId={product?.id} productSlug={product?.slug} rating={product?.rating || 5} reviewCount={product?.reviewCount} />
       </div>
 
-      {related.length > 0 && (
-        <div className="shell mt-20 border-t border-line pt-16">
-          <div className="mb-8">
-            <p className="eyebrow text-ink-3">Gợi ý cho bạn</p>
-            <h2 className="display-3 mt-2">Sản phẩm tương tự</h2>
+      {relatedProducts.length > 0 && (
+        <section className="shell mt-20 border-t border-line pt-16">
+          <div className="flex items-end justify-between pb-8">
+            <div>
+              <p className="eyebrow text-ink-3">Gợi ý cho bạn</p>
+              <h2 className="display-3 mt-1.5">Sản phẩm tương tự</h2>
+            </div>
+            <Link
+              href={`/products?category=${product?.category?.slug || product?.categorySlug || product?.category_id || ""}`}
+              className="link-line link-underline-in text-[11.5px] uppercase tracking-[0.14em] text-ink-2 hover:text-ink"
+            >
+              Xem tất cả
+            </Link>
           </div>
-          <ProductRail products={related} />
-        </div>
+          <ProductRail products={relatedProducts} />
+        </section>
       )}
     </div>
   );

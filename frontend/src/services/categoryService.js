@@ -5,77 +5,50 @@ let mockCategories = [...CATEGORIES];
 
 export const categoryService = {
   async getCategories() {
-    const categories = [];
-    let page = 1;
-    let lastPage = 1;
-    do {
-      const res = await api.get("/categories", { params: { per_page: 100, page } });
-      categories.push(...res.data.data);
-      lastPage = res.data.meta?.last_page || 1;
-      page += 1;
-    } while (page <= lastPage);
-    return categories;
+    try {
+      const res = await api.get("/categories", { params: { per_page: 100 } });
+      const data = res.data?.data || res.data;
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+      return [...mockCategories];
+    } catch {
+      return [...mockCategories];
+    }
   },
 
   async createCategory(payload) {
-    try {
-      const res = await api.post("/admin/categories", payload);
-      return res.data.data || res.data;
-    } catch {
-      const item = {
-        id: Date.now(),
-        slug: payload.slug || `cat-${Date.now()}`,
-        ...payload,
-      };
-      mockCategories.unshift(item);
-      return item;
-    }
+    const res = await api.post("/admin/categories", payload);
+    return res.data.data || res.data;
   },
 
   async updateCategory(id, payload) {
-    try {
-      const res = await api.patch(`/admin/categories/${id}`, payload);
-      return res.data.data || res.data;
-    } catch {
-      mockCategories = mockCategories.map((c) => (c.id === id || String(c.id) === String(id) ? { ...c, ...payload } : c));
-      return mockCategories.find((c) => c.id === id || String(c.id) === String(id));
-    }
+    const res = await api.patch(`/admin/categories/${id}`, payload);
+    return res.data.data || res.data;
   },
 
   async deleteCategory(id) {
-    try {
-      const res = await api.delete(`/admin/categories/${id}`);
-      return res.data;
-    } catch {
-      mockCategories = mockCategories.filter((c) => c.id !== id && String(c.id) !== String(id));
-      return { success: true };
-    }
+    const res = await api.delete(`/admin/categories/${id}`);
+    return res.data;
   },
 
   async getTrashCategories() {
     try {
       const res = await api.get("/admin/categories/trash");
-      return res.data.data || res.data;
+      const data = res.data.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
   },
 
   async restoreCategory(id) {
-    try {
-      const res = await api.patch(`/admin/categories/${id}/restore`);
-      return res.data;
-    } catch {
-      return { success: true };
-    }
+    const res = await api.patch(`/admin/categories/${id}/restore`);
+    return res.data;
   },
 
   async forceDeleteCategory(id) {
-    try {
-      const res = await api.delete(`/admin/categories/${id}/force`);
-      return res.data;
-    } catch {
-      return { success: true };
-    }
+    const res = await api.delete(`/admin/categories/${id}/force`);
+    return res.data;
   },
 };

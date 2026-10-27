@@ -2,17 +2,20 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMounted, useScrollY } from "@/hooks";
 import { cn } from "@/lib/utils";
 import {
   IconBag,
+  IconBox,
+  IconChevronDown,
   IconSearch,
   IconUser,
 } from "@/components/ui/Icons";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
 import { authErrorMessage } from "@/services/authService";
+import { menuService } from "@/services/menuService";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -40,14 +43,58 @@ export default function Navbar() {
   const overHero = pathname === "/";
   const solid = scrollY > 24 || !overHero;
 
-  const navLinks = [
-    { label: "Tất cả sản phẩm", href: "/products" },
-    { label: "Áo dài", href: "/products?category=ao-dai" },
-    { label: "Đầm dạ hội", href: "/products?category=dam-da-hoi" },
-    { label: "Vest nam", href: "/products?category=vest-nam" },
-    { label: "Váy cưới", href: "/products?category=vay-cuoi" },
-    { label: "Phụ kiện", href: "/products?category=tui-clutch" },
-  ];
+  const [navLinks, setNavLinks] = useState([
+    {
+      label: "Sản phẩm",
+      href: "/products",
+      children: [
+        { label: "Áo dài", href: "/products?category=ao-dai" },
+        { label: "Váy đầm", href: "/products?category=vay-dam" },
+        { label: "Vest nam", href: "/products?category=vest-nam" },
+        { label: "Váy cưới", href: "/products?category=vay-cuoi" },
+        { label: "Phụ kiện", href: "/products?category=phu-kien" },
+      ],
+    },
+    { label: "Tin tức", href: "/news" },
+    { label: "Bảng giá & Quy định", href: "/pricing" },
+    { label: "Về chúng tôi", href: "/about" },
+    { label: "Liên hệ", href: "/contact" },
+  ]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadMenus() {
+      try {
+        const data = await menuService.getMenus("header");
+        if (active && Array.isArray(data) && data.length > 0) {
+          setNavLinks(
+            data
+              .filter((m) => m.status === "active")
+              .map((m) => ({
+                label: m.name,
+                href: m.link === "/posts" ? "/news" : m.link || "/products",
+                children: Array.isArray(m.children)
+                  ? m.children
+                      .filter((c) => c.status === "active")
+                      .map((c) => ({
+                        label: c.name,
+                        href: c.link === "/posts" ? "/news" : c.link,
+                      }))
+                  : [],
+              }))
+          );
+        }
+      } catch {
+      }
+    }
+    loadMenus();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const displayName = user?.fullname || user?.name || "Tài khoản";
+  const initialLetter = displayName.trim().charAt(0).toUpperCase() || "U";
 
   return (
     <header
@@ -73,10 +120,62 @@ export default function Navbar() {
 
         <nav className="hidden items-center gap-6 lg:flex">
           {navLinks.map((link) => {
-            const active = pathname === link.href;
+            const hasChildren = Array.isArray(link.children) && link.children.length > 0;
+            const active =
+              pathname === link.href ||
+              (hasChildren && link.children.some((c) => pathname === c.href));
+
+            if (hasChildren) {
+              return (
+                <div key={link.label} className="relative group py-2">
+                  <Link
+                    href={link.href}
+                    className={cn(
+                      "link-line link-underline-in flex items-center gap-1 text-[11.5px] uppercase tracking-[0.13em] transition-colors",
+                      solid
+                        ? active
+                          ? "text-accent font-semibold"
+                          : "text-ink"
+                        : active
+                          ? "text-canvas font-semibold"
+                          : "text-canvas/85",
+                    )}
+                  >
+                    <span>{link.label}</span>
+                    <IconChevronDown
+                      width={11}
+                      height={11}
+                      className="transition-transform duration-200 group-hover:rotate-180"
+                    />
+                  </Link>
+
+                  <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200 absolute top-full left-0 pt-2 z-50 min-w-[190px]">
+                    <div className="rounded-lg border border-line bg-canvas/95 backdrop-blur-md p-1.5 shadow-xl">
+                      <Link
+                        href={link.href}
+                        className="block rounded-md px-3 py-2 text-xs font-semibold text-accent hover:bg-line/40 transition-colors"
+                      >
+                        Tất cả {link.label.toLowerCase()}
+                      </Link>
+                      <div className="my-1 border-t border-line/50" />
+                      {link.children.map((child) => (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className="block rounded-md px-3 py-2 text-xs text-ink hover:text-accent hover:bg-line/40 transition-colors"
+                        >
+                          {child.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <Link
-                key={link.href}
+                key={link.label}
                 href={link.href}
                 className={cn(
                   "link-line link-underline-in text-[11.5px] uppercase tracking-[0.13em] transition-colors",
@@ -144,16 +243,101 @@ export default function Navbar() {
           </Link>
 
           {user ? (
-            <div className="flex items-center gap-2">
-              <span className={cn("hidden max-w-24 truncate text-xs sm:block", solid ? "text-ink" : "text-canvas")} title={user.name || user.fullname}>
-                {user.name || user.fullname}
-              </span>
-              <button type="button" onClick={handleLogout} disabled={loggingOut} className={cn("btn btn-sm disabled:opacity-60", solid ? "btn-outline" : "border-canvas/60 text-canvas")}>
-                {loggingOut ? "Đang thoát..." : "Đăng xuất"}
+            <div className="relative group">
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center gap-2 rounded-full py-1.5 pl-2 pr-3 text-xs font-medium transition-all duration-200 border",
+                  solid
+                    ? "border-line/80 text-ink hover:border-ink/30 hover:bg-line/30"
+                    : "border-canvas/30 text-canvas hover:bg-canvas/10",
+                )}
+                aria-label="Tài khoản cá nhân"
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-[11px] font-bold text-accent">
+                  {initialLetter}
+                </span>
+                <span className="hidden max-w-28 truncate sm:inline-block">
+                  {displayName}
+                </span>
+                <IconChevronDown
+                  width={14}
+                  height={14}
+                  className="transition-transform duration-200 group-hover:rotate-180 opacity-70"
+                />
               </button>
+
+              <div
+                className="pointer-events-none absolute right-0 top-full pt-2 opacity-0 -translate-y-1 transition-all duration-200 ease-out group-hover:pointer-events-auto group-hover:opacity-100 group-hover:translate-y-0 z-50 min-w-[210px]"
+              >
+                <div className="rounded-xl border border-line bg-canvas p-1.5 shadow-xl shadow-ink/5 backdrop-blur-lg">
+                  <div className="px-3 py-2 border-b border-line/60">
+                    <p className="text-[13px] font-semibold text-ink truncate">
+                      {displayName}
+                    </p>
+                    {user.email && (
+                      <p className="text-[11px] text-ink-3 truncate mt-0.5">
+                        {user.email}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="py-1">
+                    <Link
+                      href="/account"
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink hover:bg-line/40 hover:text-accent transition-colors"
+                    >
+                      <IconUser width={15} height={15} className="text-ink-3" />
+                      <span>Quản lý tài khoản</span>
+                    </Link>
+
+                    <Link
+                      href="/orders"
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink hover:bg-line/40 hover:text-accent transition-colors"
+                    >
+                      <IconBox width={15} height={15} className="text-ink-3" />
+                      <span>Đơn thuê</span>
+                    </Link>
+                  </div>
+
+                  <div className="border-t border-line/60 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      disabled={loggingOut}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-danger hover:bg-danger/10 transition-colors disabled:opacity-60 text-left"
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      <span>{loggingOut ? "Đang thoát..." : "Đăng xuất"}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
-            <Link href="/login" className={cn("btn btn-sm gap-1.5", solid ? "btn-outline" : "border-canvas/60 text-canvas hover:bg-canvas hover:text-ink")}>
+            <Link
+              href="/login"
+              className={cn(
+                "btn btn-sm gap-1.5",
+                solid
+                  ? "btn-outline"
+                  : "border-canvas/60 text-canvas hover:bg-canvas hover:text-ink",
+              )}
+            >
               <IconUser width={14} height={14} />
               {authLoading ? "Đang kiểm tra..." : "Đăng nhập"}
             </Link>

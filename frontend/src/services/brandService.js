@@ -6,7 +6,7 @@ let mockBrands = [...BRANDS];
 export const brandService = {
   async getBrands() {
     try {
-      const res = await api.get("/brands");
+      const res = await api.get("/brands", { params: { per_page: 12 } });
       const data = res.data.data || res.data;
       if (Array.isArray(data) && data.length > 0) {
         return data;
@@ -18,64 +18,37 @@ export const brandService = {
   },
 
   async createBrand(payload) {
-    try {
-      const res = await api.post("/admin/brands", payload);
-      return res.data.data || res.data;
-    } catch {
-      const item = {
-        id: Date.now(),
-        slug: payload.slug || `brand-${Date.now()}`,
-        ...payload,
-      };
-      mockBrands.unshift(item);
-      return item;
-    }
+    const res = await api.post("/admin/brands", payload);
+    return res.data.data || res.data;
   },
 
   async updateBrand(id, payload) {
-    try {
-      const res = await api.patch(`/admin/brands/${id}`, payload);
-      return res.data.data || res.data;
-    } catch {
-      mockBrands = mockBrands.map((b) => (b.id === id || String(b.id) === String(id) ? { ...b, ...payload } : b));
-      return mockBrands.find((b) => b.id === id || String(b.id) === String(id));
-    }
+    const res = await api.patch(`/admin/brands/${id}`, payload);
+    return res.data.data || res.data;
   },
 
   async deleteBrand(id) {
-    try {
-      const res = await api.delete(`/admin/brands/${id}`);
-      return res.data;
-    } catch {
-      mockBrands = mockBrands.filter((b) => b.id !== id && String(b.id) !== String(id));
-      return { success: true };
-    }
+    const res = await api.delete(`/admin/brands/${id}`);
+    return res.data;
   },
 
   async getTrashBrands() {
     try {
       const res = await api.get("/admin/brands/trash");
-      return res.data.data || res.data;
+      const data = res.data.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
   },
 
   async restoreBrand(id) {
-    try {
-      const res = await api.patch(`/admin/brands/${id}/restore`);
-      return res.data;
-    } catch {
-      return { success: true };
-    }
+    const res = await api.patch(`/admin/brands/${id}/restore`);
+    return res.data;
   },
 
   async forceDeleteBrand(id) {
-    try {
-      const res = await api.delete(`/admin/brands/${id}/force`);
-      return res.data;
-    } catch {
-      return { success: true };
-    }
+    const res = await api.delete(`/admin/brands/${id}/force`);
+    return res.data;
   },
 };

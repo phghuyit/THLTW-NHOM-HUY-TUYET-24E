@@ -20,6 +20,8 @@ class RegisterRequest extends FormRequest
             'phone' => ['nullable', 'string', 'digits_between:10,11'],
             'address' => ['nullable', 'string', 'max:255'],
             'avatar' => ['nullable', 'string', 'max:255'],
+            'role' => ['nullable', 'string', 'in:admin,member,customer'],
+            'status' => ['nullable', 'string', 'in:active,locked,inactive,banned'],
         ];
     }
 

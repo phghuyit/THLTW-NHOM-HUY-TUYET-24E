@@ -74,15 +74,62 @@ export function CartProvider({ children }) {
   const detailed = useMemo(() => {
     return lines
       .map((line) => {
-        const product = getProduct(line.productSlug);
+        const productFromCatalog = getProduct(line.productSlug);
+        const resolvedThumbnail =
+          line.thumbnail ||
+          line.image ||
+          productFromCatalog?.thumbnail ||
+          productFromCatalog?.images?.[0]?.image_url ||
+          productFromCatalog?.images?.[0]?.src ||
+          line.product?.thumbnail ||
+          line.product?.images?.[0]?.image_url ||
+          line.product?.images?.[0]?.src ||
+          line.product?.images?.[0];
+
+        const product = productFromCatalog || line.product || {
+          id: line.productSlug,
+          slug: line.productSlug,
+          name: line.name || "Trang phục thuê",
+          images: resolvedThumbnail
+            ? [{ id: "thumb", src: typeof resolvedThumbnail === "object" ? resolvedThumbnail.src || resolvedThumbnail.image_url : resolvedThumbnail, alt: line.name || "Sản phẩm" }]
+            : [],
+          thumbnail: resolvedThumbnail,
+          brandLine: line.brandLine || "StyleRent",
+        };
+
+        if ((!product.images || product.images.length === 0) && resolvedThumbnail) {
+          product.images = [
+            {
+              id: "thumb",
+              src: typeof resolvedThumbnail === "object" ? resolvedThumbnail.src || resolvedThumbnail.image_url : resolvedThumbnail,
+              alt: product.name,
+            },
+          ];
+        }
+        if (!product.thumbnail && resolvedThumbnail) {
+          product.thumbnail = resolvedThumbnail;
+        }
+        if (line.name && product.name === "Trang phục thuê") {
+          product.name = line.name;
+        }
+
         const found = findVariantGlobal(line.variantId);
-        if (!product || !found) return null;
-        const days = rentalDays(line.pickupDate, line.returnDate);
-        const quote = buildQuote([{ variant: found.variant, days, quantity: line.quantity }]);
+        const variant =
+          found?.variant ||
+          line.variant || {
+            id: line.variantId || "var-default",
+            size: line.size || "M",
+            color: line.color || "Tiêu chuẩn",
+            pricePerDay: line.pricePerDay || product.rental_price_per_day || product.pricePerDay || 350000,
+            depositAmount: line.depositAmount || product.deposit || 500000,
+          };
+
+        const days = rentalDays(line.pickupDate, line.returnDate) || 1;
+        const quote = buildQuote([{ variant, days, quantity: line.quantity }]);
         return {
           line,
           product,
-          variant: found.variant,
+          variant,
           days,
           rentalTotal: quote.subtotalRental,
           depositTotal: quote.totalDeposit,
@@ -123,7 +170,7 @@ export function CartProvider({ children }) {
       if (match) {
         return prev.map((l) =>
           l.id === match.id
-            ? { ...l, quantity: Math.min(9, l.quantity + input.quantity), holdExpiresAt: holdDeadline() }
+            ? { ...l, ...input, quantity: Math.min(9, l.quantity + input.quantity), holdExpiresAt: holdDeadline() }
             : l,
         );
       }
@@ -131,12 +178,8 @@ export function CartProvider({ children }) {
         ...prev,
         {
           id: `line-${Date.now()}-${Math.round(Math.random() * 1000)}`,
-          productSlug: input.productSlug,
-          variantId: input.variantId,
-          quantity: input.quantity,
-          pickupDate: input.pickupDate,
-          returnDate: input.returnDate,
           holdExpiresAt: holdDeadline(),
+          ...input,
         },
       ];
     });

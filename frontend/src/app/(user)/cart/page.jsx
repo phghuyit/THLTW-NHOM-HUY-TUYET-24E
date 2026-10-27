@@ -70,7 +70,7 @@ export default function CartPage() {
               <li key={line.id} className="py-6 sm:py-8">
                 <div className="flex gap-4 sm:gap-6">
                   <Link href={`/products/${product.slug}`} className="w-24 shrink-0 sm:w-28">
-                    <ProductMedia image={product.images?.[0]} ratio="3/4" />
+                    <ProductMedia image={product.images?.[0] || product.thumbnail || product.image || line.thumbnail || line.image} ratio="3/4" />
                   </Link>
 
                   <div className="flex flex-1 flex-col justify-between">
@@ -172,13 +172,12 @@ export default function CartPage() {
 
             <PriceBreakdown quote={cart.quote} className="mt-5" />
 
-            <button
-              type="button"
-              onClick={handleCheckout}
+            <Link
+              href="/checkout"
               className="btn btn-block mt-6 py-3.5 text-[12px]"
             >
               Tiến hành đặt thuê ({formatVnd(cart.quote.dueNow)})
-            </button>
+            </Link>
 
             <div className="mt-6 space-y-2.5 border-t border-line pt-4 text-[12px] text-ink-2">
               <p className="flex items-center gap-2">

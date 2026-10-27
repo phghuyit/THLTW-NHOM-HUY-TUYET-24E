@@ -21,14 +21,19 @@ export const orderService = {
     }
   },
 
-  async updateOrderStatus(code, status) {
+  async getMyOrders() {
     try {
-      const res = await api.patch(`/admin/orders/${code}`, { status });
-      return res.data.data || res.data;
+      const res = await api.get("/my-orders");
+      return res.data.data || res.data || [];
     } catch (err) {
-      console.error(`Lỗi cập nhật trạng thái đơn ${code}:`, err);
-      return { code, status };
+      console.error("Lỗi gọi API /my-orders:", err);
+      return [];
     }
+  },
+
+  async updateOrderStatus(code, status) {
+    const res = await api.patch(`/admin/orders/${code}`, { status });
+    return res.data.data || res.data;
   },
 
   async getTrashOrders() {
@@ -42,22 +47,12 @@ export const orderService = {
   },
 
   async restoreOrder(id) {
-    try {
-      const res = await api.patch(`/admin/orders/${id}/restore`);
-      return res.data;
-    } catch (err) {
-      console.error(`Lỗi khôi phục đơn hàng ${id}:`, err);
-      return { success: true };
-    }
+    const res = await api.patch(`/admin/orders/${id}/restore`);
+    return res.data;
   },
 
   async forceDeleteOrder(id) {
-    try {
-      const res = await api.delete(`/admin/orders/${id}/force`);
-      return res.data;
-    } catch (err) {
-      console.error(`Lỗi xóa vĩnh viễn đơn hàng ${id}:`, err);
-      return { success: true };
-    }
+    const res = await api.delete(`/admin/orders/${id}/force`);
+    return res.data;
   },
 };

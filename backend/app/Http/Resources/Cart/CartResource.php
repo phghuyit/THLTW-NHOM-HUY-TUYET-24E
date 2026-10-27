@@ -28,9 +28,7 @@ class CartResource extends JsonResource
                 }
 
                 $pricePerDay = $item->product ? (float) $item->product->rental_price_per_day : 0;
-                $depositRate = $item->product ? (int) $item->product->deposit_rate_percent : 70;
-                $originalValue = $item->product ? (float) $item->product->original_value : 0;
-                $depositPerItem = ($originalValue * $depositRate) / 100;
+                $depositPerItem = 0;
 
                 $totalQuantity += (int) $item->quantity;
                 $totalRentalFee += $pricePerDay * $item->quantity * $rentalDays;

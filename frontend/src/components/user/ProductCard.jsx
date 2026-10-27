@@ -52,8 +52,8 @@ export function ProductCard({ product }) {
 
       <div className="pt-4 transition-transform duration-500 ease-luxe group-hover:-translate-y-0.5">
         <p className="eyebrow text-ink-3">{brandName}</p>
-        <h3 className="mt-1.5 text-[14.5px] leading-snug">
-          <Link href={`/products/${product.slug || product.id}`} className="link-line link-underline-in">
+        <h3 className="mt-1.5 text-[14.5px] leading-snug truncate" title={product.name}>
+          <Link href={`/products/${product.slug || product.id}`} className="link-line link-underline-in truncate block">
             {product.name}
           </Link>
         </h3>

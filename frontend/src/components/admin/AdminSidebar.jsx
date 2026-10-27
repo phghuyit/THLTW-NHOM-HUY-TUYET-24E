@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { IconBox, IconList, IconStore, IconTag, IconTrash, IconTruck } from "@/components/ui/Icons";
+import { IconBox, IconList, IconMenu, IconStore, IconTag, IconTrash, IconTruck, IconUser } from "@/components/ui/Icons";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
@@ -14,6 +14,20 @@ export default function AdminSidebar() {
     { label: "Đơn hàng", href: "/admin/orders", icon: <IconTruck width={16} height={16} /> },
     { label: "Danh mục", href: "/admin/categories", icon: <IconList width={16} height={16} /> },
     { label: "Thương hiệu", href: "/admin/brands", icon: <IconBox width={16} height={16} /> },
+    { label: "Người dùng", href: "/admin/users", icon: <IconUser width={16} height={16} /> },
+    {
+      label: "Bài viết & Tin tức",
+      href: "/admin/posts",
+      icon: (
+        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
+          <path d="M18 14h-8" />
+          <path d="M15 18h-5" />
+          <path d="M10 6h8v4h-8V6Z" />
+        </svg>
+      ),
+    },
+    { label: "Menu điều hướng", href: "/admin/menus", icon: <IconMenu width={16} height={16} /> },
     { label: "Thùng rác", href: "/admin/trash", icon: <IconTrash width={16} height={16} /> },
   ];
 
